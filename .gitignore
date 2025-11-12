@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Build outputs
+client/build/
+dist/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+config.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (user-generated content)
+uploads/profile-pictures/
+uploads/*.jpg
+uploads/*.png
+uploads/*.jpeg
+uploads/*.gif
+
+# Keep uploads directory structure
+!uploads/.gitkeep
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+query
+
