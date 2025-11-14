@@ -5,6 +5,7 @@ import { SocketProvider } from './contexts/SocketContext';
 import { PresenceProvider } from './contexts/PresenceContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { NotificationDispatcherProvider } from './contexts/NotificationDispatcherContext';
+import { MessagesWidgetProvider } from './contexts/MessagesWidgetContext';
 import Layout from './components/Layout';
 import ToastContainer from './components/ToastContainer';
 import NotificationBridge from './components/NotificationBridge';
@@ -47,9 +48,10 @@ function App() {
       <SocketProvider>
         <PresenceProvider>
           <NotificationDispatcherProvider>
-            <NotificationProvider>
-              <NotificationBridge />
-              <Router>
+            <MessagesWidgetProvider>
+              <NotificationProvider>
+                <NotificationBridge />
+                <Router>
               <Routes>
             {/* Landing page with separate layout */}
             <Route path="/" element={<LandingLayout />}>
@@ -99,6 +101,7 @@ function App() {
               <ToastContainer />
             </Router>
             </NotificationProvider>
+            </MessagesWidgetProvider>
           </NotificationDispatcherProvider>
         </PresenceProvider>
       </SocketProvider>

@@ -17,10 +17,13 @@ import {
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import UserStatusBadge from '../components/UserStatusBadge';
-import TypingIndicator from '../components/TypingIndicator';
+import TypingActivityBar from '../components/TypingActivityBar';
 import ChatHeader from '../components/ChatHeader';
 import MessageList from '../components/MessageList';
 import MuteDurationModal from '../components/MuteDurationModal';
+import { MessageStatusRenderer } from '../utils/messageStatusRenderer';
+import { useAutosizeTextarea } from '../hooks/useAutosizeTextarea';
+import { isMobileDevice } from '../utils/deviceDetection';
 
 interface Toast {
   id: string;
@@ -72,6 +75,16 @@ interface Conversation {
   isRoomParticipant?: boolean;
 }
 
+interface TypingUserInfo {
+  userId: string;
+  name: string;
+  profilePicture?: string;
+}
+
+const READ_INDICATOR_DELAY_MS = 400;
+const STATUS_RENDER_BUFFER_MS = 80;
+const IN_PROGRESS_THRESHOLD_MS = 1200;
+
 declare global {
   interface Window {
     __activeConversationId?: string;
@@ -81,19 +94,27 @@ declare global {
 const Messages: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const dispatcher = useNotificationDispatcher();
   const { socket, isConnected, joinConversation, leaveConversation, onMessageNew, onMessageSent, onMessageDelivered, onConversationUpdate, onTyping, sendTyping, onMessageSeen, ackMessageReceived, onUserStatusUpdate } = useSocket();
+  const { playMessageSent, playMessageReceived, playTyping, playMessageRead, primeReadSound, setupAudioUnlock } = useChatSounds({
+    volume: 0.6,
+  });
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  // Use uncontrolled input with ref to prevent re-renders on keystroke
-  const messageInputRef = useRef<HTMLInputElement>(null);
-  const [messageInput, setMessageInput] = useState(''); // Keep for form submission only
+  // Use controlled textarea with autosize
+  const [messageInput, setMessageInput] = useState('');
+  const textareaRef = useAutosizeTextarea(messageInput, { minRows: 1, maxRows: 6, maxHeight: 160 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sending, setSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [otherTypingName, setOtherTypingName] = useState<string | null>(null);
+  const typingUsersRef = useRef<Map<string, TypingUserInfo>>(new Map());
+  const typingUserTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const [typingUsersDisplay, setTypingUsersDisplay] = useState<TypingUserInfo[]>([]);
+  const selectedConversationRef = useRef<Conversation | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const pushToast = useCallback((message: string, options: { conversationId?: string; senderName?: string; senderAvatar?: string } = {}) => {
     setToasts(prev => [
@@ -114,97 +135,70 @@ const Messages: React.FC = () => {
   // Track which read messages should show "Read" text (internal until clicked)
   const [readVisible, setReadVisible] = useState<Set<string>>(new Set()); // messageId -> isReadVisible
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingStopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fetchingConvosRef = useRef(false);
-  const lastConvosFetchRef = useRef(0);
+  const conversationsCacheRef = useRef<Record<string, Conversation>>({});
+  const pendingReadTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pendingStatusRenderTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const bufferedStatusRef = useRef<Map<string, string>>(new Map());
+  const highestStatusRef = useRef<Map<string, string>>(new Map());
+  const sentMessagesRef = useRef<Set<string>>(new Set());
+  const messageSeqRef = useRef<Map<string, number>>(new Map());
+  const messageSeqNodeRef = useRef<Map<string, string>>(new Map());
+  const sentSoundPlayedRef = useRef<Set<string>>(new Set());
+  const readSoundPlayedRef = useRef<Set<string>>(new Set());
+  const lastKnownReadStateRef = useRef<Map<string, Set<string>>>(new Map());
+  const statusGlitchCountRef = useRef<Map<string, number>>(new Map());
+  const lastConvosFetchRef = useRef<number>(0);
   const selectedConversationIdRef = useRef<string | null>(null);
-  const isMessagesMountedRef = useRef<boolean>(false);
-  const lastTypingEmitRef = useRef<number>(0);
-  const isTypingActiveRef = useRef<boolean>(false); // Track if we've sent typing:start
-  const typingThrottleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Metrics tracking
+  const isMessagesMountedRef = useRef(false);
   const typingMetricsRef = useRef<{
     emitCount: number;
     lastEmitTime: number;
     broadcastLatencies: number[];
     inputFrameTimes: number[];
     renderCount: number;
-    lastRenderTime: number;
-  }>({
-    emitCount: 0,
-    lastEmitTime: 0,
-    broadcastLatencies: [],
-    inputFrameTimes: [],
-    renderCount: 0,
-    lastRenderTime: 0
-  });
-  // Track message IDs that have already triggered the read sound
-  const readSoundPlayedRef = useRef<Set<string>>(new Set());
-  // Track message IDs that have already triggered the sent sound
-  const sentSoundPlayedRef = useRef<Set<string>>(new Set());
-  // Track if typing sound has been played for the current typing session (per conversation)
-  // Key: conversationId, Value: boolean (true if sound already played for current typing session)
+  }>({ emitCount: 0, lastEmitTime: Date.now(), broadcastLatencies: [], inputFrameTimes: [], renderCount: 0 });
   const typingSoundPlayedRef = useRef<Map<string, boolean>>(new Map());
-  // Track previous typing state per conversation to detect transitions
-  // Key: conversationId, Value: boolean (was typing in previous event)
   const previousTypingStateRef = useRef<Map<string, boolean>>(new Map());
-  // Track the last known read state of our messages to detect NEW reads
-  const lastKnownReadStateRef = useRef<Map<string, Set<string>>>(new Map()); // messageId -> Set of user IDs who read it
-  // Track pending read indicator timers to allow cancellation
-  const pendingReadTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map()); // messageId -> timeout ID
-  // Track sequence numbers for status events to ignore older events
-  const messageSeqRef = useRef<Map<string, number>>(new Map()); // messageId -> last processed seq
-  const messageSeqNodeRef = useRef<Map<string, string>>(new Map()); // messageId -> last processed nodeId for tie-breaking
-  // Track messages that have been sent (to prevent "In progress..." from showing after send)
-  const sentMessagesRef = useRef<Set<string>>(new Set()); // messageId -> isSent
-  // Track pending status render timers to buffer status updates
-  const pendingStatusRenderTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map()); // messageId -> timeout ID
-  // Track latest buffered status for each message (to show only final state)
-  const bufferedStatusRef = useRef<Map<string, string>>(new Map()); // messageId -> latest status
-  // CRITICAL: Track highest status for each message to prevent backward transitions
-  // This ref is updated synchronously whenever status changes, allowing progressTimer to check it
-  const highestStatusRef = useRef<Map<string, string>>(new Map()); // messageId -> highest status
-  // Track status glitches (backward transition attempts) for metrics
-  const statusGlitchCountRef = useRef<Map<string, number>>(new Map()); // messageId -> glitch count
+  const lastTypingEmitRef = useRef<number>(0);
+  const isTypingActiveRef = useRef<boolean>(false); // Track if we've sent typing:start
+  const typingThrottleTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Config: Delay before showing read indicator visually (ms)
-  // NOTE: Sound plays IMMEDIATELY after status update - no delay
-  // This delay only affects the visual display of the read indicator
-  const READ_INDICATOR_DELAY_MS = 400;
-  // Config: Buffer delay for status rendering to prevent visual jumps (ms)
-  // Only show the latest status after this delay, skipping intermediate transitions
-  // Reduced to 100ms to match unified dispatcher buffer for faster Sent → Delivered transitions
-  const STATUS_RENDER_BUFFER_MS = 100; // Configurable: 100-150ms range (reduced for faster UX)
-  // Config: Threshold for showing "In progress..." status (ms)
-  // Only show "In progress..." if message upload takes longer than this
-  // If message uploads quickly, skip this status entirely
-  const IN_PROGRESS_THRESHOLD_MS = 300;
-  // Use dispatcher's buffer delay (default 150ms, configurable)
-  // The unified dispatcher handles buffering and coalescing for all status updates
-  const dispatcher = useNotificationDispatcher();
-
-  // Chat sounds hook - enable sounds by default
-  const { playMessageSent, playMessageReceived, playTyping, playMessageRead, primeReadSound, setupAudioUnlock } = useChatSounds({
-    enabled: true,
-    volume: 0.6
-  });
+  const updateTypingVisuals = useCallback(() => {
+    const usersArray = Array.from(typingUsersRef.current.values());
+    startTransition(() => {
+      setTypingUsersDisplay(usersArray);
+      setIsOtherTyping(usersArray.length > 0);
+      setOtherTypingName(usersArray.length > 0 ? (usersArray[0]?.name ?? null) : null);
+    });
+  }, []);
   
-  // Setup audio unlock and prime read sound on mount (background task)
+  const resolveTypingUserInfo = useCallback((userId: string, fallbackName?: string): TypingUserInfo => {
+    const activeConversation = selectedConversationRef.current;
+    const participant = activeConversation?.participants.find(p => p._id === userId);
+    return {
+      userId,
+      name: participant?.name || fallbackName || 'User',
+      profilePicture: participant?.profilePicture,
+    };
+  }, []);
+  
   useEffect(() => {
-    // Move audio setup to background to avoid blocking initial render
-    setTimeout(() => {
-      setupAudioUnlock();
-      // Prime read sound when app loads to ensure it's ready for immediate playback
-      primeReadSound();
-      console.log('[Messages] ✅ Primed read sound on app load (background)');
-    }, 0);
-  }, [setupAudioUnlock, primeReadSound]);
+    selectedConversationRef.current = selectedConversation;
+    typingUsersRef.current.clear();
+    typingUserTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+    typingUserTimeoutsRef.current.clear();
+    setTypingUsersDisplay([]);
+    startTransition(() => {
+      setIsOtherTyping(false);
+      setOtherTypingName(null);
+    });
+  }, [selectedConversation]);
 
   // Log typing metrics periodically (every 30 seconds)
   useEffect(() => {
-    const metricsInterval = setInterval(() => {
+    const interval = setInterval(() => {
       const metrics = typingMetricsRef.current;
       if (metrics.emitCount > 0 || metrics.broadcastLatencies.length > 0 || metrics.inputFrameTimes.length > 0) {
         const avgInputFrameTime = metrics.inputFrameTimes.length > 0
@@ -229,7 +223,7 @@ const Messages: React.FC = () => {
       }
     }, 30000); // Log every 30 seconds
     
-    return () => clearInterval(metricsInterval);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -250,22 +244,16 @@ const Messages: React.FC = () => {
       selectedConversationIdRef.current = selectedConversation._id;
       window.__activeConversationId = selectedConversation._id;
       // reset typing indicator on convo switch
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+      if (typingStopTimeoutRef.current) {
+        clearTimeout(typingStopTimeoutRef.current);
+        typingStopTimeoutRef.current = null;
       }
       if (typingStopTimeoutRef.current) {
         clearTimeout(typingStopTimeoutRef.current);
         typingStopTimeoutRef.current = null;
       }
-      if (typingThrottleTimerRef.current) {
-        clearTimeout(typingThrottleTimerRef.current);
-        typingThrottleTimerRef.current = null;
-      }
-      // Send typing:stop when switching conversations (if we were typing in previous conversation)
-      if (isTypingActiveRef.current && prevConvId && sendTyping && isConnected) {
-        isTypingActiveRef.current = false;
-        sendTyping(prevConvId, false);
+      if (prevConvId && prevConvId !== selectedConversation._id) {
+        sendTyping(prevConvId, false, user?.name);
       }
       setIsOtherTyping(false);
       fetchMessages(selectedConversation._id);
@@ -283,8 +271,13 @@ const Messages: React.FC = () => {
       // This prevents playing read sound when we open the conversation ourselves
 
       return () => {
-        leaveConversation(selectedConversation._id);
-        delete window.__activeConversationId;
+        isMessagesMountedRef.current = false;
+        if (selectedConversationIdRef.current) {
+          try {
+            sendTyping(selectedConversationIdRef.current, false, user?.name);
+          } catch {}
+          try { leaveConversation(selectedConversationIdRef.current); } catch {}
+        }
         // Cancel all pending read indicator timers when switching conversations
         pendingReadTimersRef.current.forEach((timerId) => {
           clearTimeout(timerId);
@@ -299,16 +292,13 @@ const Messages: React.FC = () => {
         // Clear sequence tracking when switching conversations
         messageSeqRef.current.clear();
         sentMessagesRef.current.clear();
-        // Note: We don't clear readSoundPlayedRef or lastKnownReadStateRef here
-        // because we want to remember which messages already played the sound
-        // even if we switch conversations
       };
     } else {
       selectedConversationIdRef.current = null;
       delete window.__activeConversationId;
       setIsOtherTyping(false);
     }
-  }, [selectedConversation, isConnected, socket, joinConversation, leaveConversation]);
+  }, [selectedConversation, isConnected, socket, joinConversation, leaveConversation, user?.name]);
 
   useEffect(() => {
     return () => {
@@ -456,15 +446,15 @@ const Messages: React.FC = () => {
       }
     };
 
-    onMessageNew(handleNewMessage);
-    onConversationUpdate(handleConversationUpdate);
+    const offMessageNew = onMessageNew(handleNewMessage);
+    const offConversationUpdate = onConversationUpdate(handleConversationUpdate);
 
     // Delivery receipts -> set status to Delivered
     // Update status for ALL conversations, not just the current one
     // Handle message:sent event from server
     // This is emitted immediately after message is created, BEFORE delivery
     // CRITICAL: Play sent sound ONLY here, based on status transition to "Sent"
-    onMessageSent((payload: { conversationId: string; messageId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
+    const offMessageSent = onMessageSent((payload: { conversationId: string; messageId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
       try {
         // Validate payload
         if (!payload || typeof payload !== 'object') {
@@ -647,7 +637,7 @@ const Messages: React.FC = () => {
 
       // Handle message:delivered event from server
       // CRITICAL: Do NOT play sent sound here - it should ONLY play on transition to "Sent" in message:sent handler
-      onMessageDelivered((payload: { conversationId: string; messageId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
+    const offMessageDelivered = onMessageDelivered((payload: { conversationId: string; messageId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
         try {
           // Validate payload (additional validation beyond SocketContext)
           if (!payload || typeof payload !== 'object') {
@@ -825,7 +815,7 @@ const Messages: React.FC = () => {
     // Real-time read receipts: update messages immediately when the other user reads
     // CRITICAL: This handler processes read events for ALL conversations, not just the currently open one
     // This ensures the sender hears the read sound even if they're viewing a different conversation
-    onMessageSeen(async (payload: { conversationId: string; userId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
+    const offMessageSeen = onMessageSeen(async (payload: { conversationId: string; userId: string; seq?: number; timestamp?: string; nodeId?: string }) => {
       try {
         // Validate payload (additional validation beyond SocketContext)
         if (!payload || typeof payload !== 'object') {
@@ -1195,7 +1185,7 @@ const Messages: React.FC = () => {
     });
 
     // Typing indicator listener (scoped to current conversation via ref)
-    onTyping((payload) => {
+    const offTyping = onTyping((payload) => {
       try {
         // Validate payload (additional validation beyond SocketContext)
         if (!payload || typeof payload !== 'object') {
@@ -1211,99 +1201,104 @@ const Messages: React.FC = () => {
           throw new Error('Invalid typing payload: missing or invalid isTyping');
         }
         
+        const incomingUserId = payload.userId ? payload.userId.toString() : '';
+        const currentUserId = user?._id ? user._id.toString() : '';
+        
         const isCurrentConversation = payload.conversationId === selectedConversationIdRef.current;
-        const isOtherUser = payload.userId !== user?._id;
+        const isOtherUser = incomingUserId && incomingUserId !== currentUserId;
         const isViewingConversation = isCurrentConversation && 
                                        document.visibilityState === 'visible' && 
                                        window.__activeConversationId === payload.conversationId;
-      
-      if (isCurrentConversation && isOtherUser) {
-        const isNowTyping = !!payload.isTyping;
-        const wasTyping = previousTypingStateRef.current.get(payload.conversationId) || false;
-        
-        // Move metrics tracking to async (non-blocking) to prevent typing lag
+    
+    if (isCurrentConversation && isOtherUser) {
         const scheduleAsync = typeof requestIdleCallback !== 'undefined' 
           ? (cb: () => void) => requestIdleCallback(cb, { timeout: 100 })
           : (cb: () => void) => setTimeout(cb, 0);
-        
+
         if (payload.timestamp) {
           scheduleAsync(() => {
             const serverEmitTime = payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now();
-          const broadcastLatency = Date.now() - serverEmitTime;
-          typingMetricsRef.current.broadcastLatencies.push(broadcastLatency);
-          // Keep only last 100 latencies
-          if (typingMetricsRef.current.broadcastLatencies.length > 100) {
-            typingMetricsRef.current.broadcastLatencies.shift();
-          }
+            const broadcastLatency = Date.now() - serverEmitTime;
+            typingMetricsRef.current.broadcastLatencies.push(broadcastLatency);
+            if (typingMetricsRef.current.broadcastLatencies.length > 100) {
+              typingMetricsRef.current.broadcastLatencies.shift();
+            }
           });
         }
-        
-        // Update previous typing state for this conversation
-        previousTypingStateRef.current.set(payload.conversationId, isNowTyping);
-        
-        // Use startTransition for non-blocking UI updates (typing indicator)
-        // This prevents blocking the main thread and keeps typing smooth
-        // Typing indicator updates are low-priority and won't block user input
-        startTransition(() => {
-          setIsOtherTyping(isNowTyping);
-          setOtherTypingName(isNowTyping ? (payload.userName || 'User') : null);
-        });
-        
-        if (isNowTyping && typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
+
+        const wasTypingConversation = previousTypingStateRef.current.get(payload.conversationId) || false;
+
+        if (payload.isTyping) {
+          const typingUser = resolveTypingUserInfo(incomingUserId, payload.userName);
+          typingUsersRef.current.set(incomingUserId, typingUser);
+
+          const existingTimeout = typingUserTimeoutsRef.current.get(incomingUserId);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+          }
+
+          const timeoutId = setTimeout(() => {
+            typingUsersRef.current.delete(incomingUserId);
+            typingUserTimeoutsRef.current.delete(incomingUserId);
+            const hasRemainingUsers = typingUsersRef.current.size > 0;
+            previousTypingStateRef.current.set(payload.conversationId, hasRemainingUsers);
+            if (!hasRemainingUsers) {
+              typingSoundPlayedRef.current.set(payload.conversationId, false);
+            }
+            updateTypingVisuals();
+          }, 1200);
+
+          typingUserTimeoutsRef.current.set(incomingUserId, timeoutId);
+        } else {
+          const existingTimeout = typingUserTimeoutsRef.current.get(incomingUserId);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+            typingUserTimeoutsRef.current.delete(incomingUserId);
+          }
+          typingUsersRef.current.delete(incomingUserId);
         }
-        
-        // CRITICAL: Only play typing sound when typing STARTS (transitions from false to true)
-        // This prevents the sound from playing on every keystroke/typing event
-        // Typing events are emitted every 400ms while typing, so we need to debounce the sound
-        if (isNowTyping && !wasTyping) {
-          // Typing just started - play sound once per typing session
+
+        const hasTypingUsers = typingUsersRef.current.size > 0;
+        updateTypingVisuals();
+
+        if (hasTypingUsers && !wasTypingConversation) {
           const soundAlreadyPlayed = typingSoundPlayedRef.current.get(payload.conversationId) || false;
-          
+
           if (isViewingConversation && !soundAlreadyPlayed) {
-            // Mark sound as played for this conversation's typing session
             typingSoundPlayedRef.current.set(payload.conversationId, true);
-            
-            // Move sound and logging to async (non-blocking)
+
             scheduleAsync(() => {
-            console.log('[Messages] 🔊 Playing typing sound (typing session started)');
+              console.log('[Messages] 🔊 Playing typing sound (typing session started)');
             });
-            
+
             playTyping().catch((err) => {
               const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
               console.warn('[Messages] playTyping failed:', error);
             });
           }
-        } else if (!isNowTyping && wasTyping) {
-          // Typing just stopped - reset the sound flag for next typing session
+        } else if (!hasTypingUsers && wasTypingConversation) {
           typingSoundPlayedRef.current.set(payload.conversationId, false);
-          previousTypingStateRef.current.set(payload.conversationId, false);
-          
-          // Move logging to async
+
           scheduleAsync(() => {
-          console.log('[Messages] ⏹️ Typing stopped - reset sound flag for next session');
+            console.log('[Messages] ⏹️ Typing stopped - reset sound flag for next session');
           });
         }
-        
-        if (isNowTyping) {
-          typingTimeoutRef.current = setTimeout(() => {
-            startTransition(() => {
-            setIsOtherTyping(false);
-            });
-            // Reset sound flag and previous state when typing indicator times out
-            typingSoundPlayedRef.current.set(payload.conversationId, false);
-            previousTypingStateRef.current.set(payload.conversationId, false);
-          }, 3000);
-        }
+
+        previousTypingStateRef.current.set(payload.conversationId, hasTypingUsers);
       } else if (!isCurrentConversation) {
         // Ensure indicator is cleared if typing belongs to another conversation
         // Use startTransition for non-blocking update
         startTransition(() => {
         setIsOtherTyping(false);
+        setOtherTypingName(null);
         });
         // Also reset sound flag and previous state for conversations we're not viewing
         typingSoundPlayedRef.current.delete(payload.conversationId);
         previousTypingStateRef.current.delete(payload.conversationId);
+        typingUsersRef.current.clear();
+        typingUserTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+        typingUserTimeoutsRef.current.clear();
+        setTypingUsersDisplay([]);
       }
       } catch (err) {
         // Only throw Error instances
@@ -1315,10 +1310,18 @@ const Messages: React.FC = () => {
 
     return () => {
       isMessagesMountedRef.current = false;
-      // Leave any active room to avoid stale seen events if we navigate away
       if (selectedConversationIdRef.current) {
+        try {
+          sendTyping(selectedConversationIdRef.current, false, user?.name);
+        } catch {}
         try { leaveConversation(selectedConversationIdRef.current); } catch {}
       }
+      offMessageNew();
+      offConversationUpdate();
+      offMessageSent();
+      offMessageDelivered();
+      offMessageSeen();
+      offTyping();
       // Clear all pending status timers on unmount
       pendingReadTimersRef.current.forEach(timer => clearTimeout(timer));
       pendingReadTimersRef.current.clear();
@@ -2017,8 +2020,7 @@ const Messages: React.FC = () => {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Read from uncontrolled input ref instead of state
-    const inputValue = messageInputRef.current?.value?.trim() || '';
+    const inputValue = messageInput.trim();
     if (!inputValue || !selectedConversation || sending) return;
 
     setSending(true);
@@ -2035,9 +2037,11 @@ const Messages: React.FC = () => {
       };
       setMessages(prev => [...prev, optimistic]);
       
-      // Clear input immediately (uncontrolled, so clear the ref value)
-      if (messageInputRef.current) {
-        messageInputRef.current.value = '';
+      // Clear input immediately
+      setMessageInput('');
+      // Reset textarea height after sending
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
       }
       
       // Track when we started the request to determine if we should show "In progress..."
@@ -2204,9 +2208,9 @@ const Messages: React.FC = () => {
   // Optimized input handler with uncontrolled input and throttling
   // CRITICAL: Use uncontrolled input (ref) to prevent re-renders of message list/header
   // Input updates are handled natively by the DOM, not React state - zero re-renders on keystroke
-  const handleInputChange = useCallback(() => {
-    // Input is uncontrolled - no state update needed, DOM handles it natively
-    // This prevents re-renders of the entire component tree on every keystroke
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setMessageInput(value);
     
     // Track input frame time for metrics (async, non-blocking, background task)
     // Use requestIdleCallback for better performance, fallback to setTimeout
@@ -2243,7 +2247,7 @@ const Messages: React.FC = () => {
       lastTypingEmitRef.current = now;
       
       // Emit typing:start via socket.io immediately (first keystroke)
-      sendTyping(convId, true);
+      sendTyping(convId, true, user?.name);
       
       // Move metrics tracking to background (non-blocking, async)
       const scheduleAsync = typeof requestIdleCallback !== 'undefined' 
@@ -2257,7 +2261,7 @@ const Messages: React.FC = () => {
       // Schedule typing:stop after idle period
       typingStopTimeoutRef.current = setTimeout(() => {
         isTypingActiveRef.current = false;
-        sendTyping(convId, false);
+        sendTyping(convId, false, user?.name);
         typingStopTimeoutRef.current = null;
       }, TYPING_IDLE_MS);
     } else {
@@ -2270,7 +2274,7 @@ const Messages: React.FC = () => {
         lastTypingEmitRef.current = now;
         
         // Emit typing update via socket.io (throttled)
-        sendTyping(convId, true);
+        sendTyping(convId, true, user?.name);
         
         // Move metrics tracking to background (non-blocking, async)
         scheduleAsync(() => {
@@ -2288,7 +2292,7 @@ const Messages: React.FC = () => {
           lastTypingEmitRef.current = emitTime;
           
           // Emit typing update
-          sendTyping(convId, true);
+          sendTyping(convId, true, user?.name);
           
           // Move metrics tracking to background (non-blocking, async)
           scheduleAsync(() => {
@@ -2303,11 +2307,11 @@ const Messages: React.FC = () => {
       // Reset stop timeout on each keystroke
       typingStopTimeoutRef.current = setTimeout(() => {
         isTypingActiveRef.current = false;
-        sendTyping(convId, false);
+        sendTyping(convId, false, user?.name);
         typingStopTimeoutRef.current = null;
       }, TYPING_IDLE_MS);
     }
-  }, [selectedConversation, sendTyping, isConnected]);
+  }, [selectedConversation, sendTyping, isConnected, user?.name]);
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -2688,17 +2692,19 @@ const Messages: React.FC = () => {
       const isClicked = stickyTimes.has(message._id);
       const isReadVisible = readVisible.has(message._id); // Check if "Read" text should be visible
       
-      // CRITICAL: Conditions must be mutually exclusive to prevent duplicate status displays
-      // Priority order: 1) Most recent + last-read, 2) Most recent (not last-read), 3) Last-read (not most recent), 4) Other clicked
+      // New rules:
+      // 1. Only one read indicator at a time (on the most recently read message - isLastSeen)
+      // 2. Latest message: show read indicator automatically if read, status text only on click
+      // 3. Older messages: show read indicator only if most recently read, status text only on click
       
-      // Most recent message that is also last-read: No status text by default, show only when clicked
-      const isMostRecentAndLastRead = isOwn && isLatestOwn && isLastSeen;
-      // Most recent message (not last-read): Always show status text only
-      const shouldShowStatusTextOnMostRecent = isOwn && isLatestOwn && !isLastSeen;
-      // Last-read message (if different from most recent): Show tiny profile picture always, status when clicked
-      const shouldShowReadIndicatorOnLastRead = isOwn && isSeenByOther && isLastSeen && !isLatestOwn;
-      // Other messages: Show status text only when clicked (EXCLUDE messages already handled by shouldShowReadIndicatorOnLastRead)
-      const shouldShowStatusTextOnOthers = isOwn && !isLatestOwn && isClicked && !shouldShowReadIndicatorOnLastRead;
+      // Simplified rules matching shared component:
+      // - If message is NOT read: show status text automatically (if latest) or on click (if older)
+      // - If message IS read: show status text ONLY when clicked (never automatically)
+      const isRead = isSeenByOther;
+      const shouldShowStatusText = isOwn && (isRead ? isClicked : (isLatestOwn ? true : isClicked));
+      
+      // Keep existing shouldShowStatus logic for compatibility with existing code
+      const shouldShowReadIndicator = isOwn && isSeenByOther && isLastSeen;
       
       // Determine current status for display - SINGLE SOURCE OF TRUTH
       // CRITICAL: Use getHighestStatus to find the highest status across ALL sources
@@ -2773,15 +2779,14 @@ const Messages: React.FC = () => {
           shouldShowStatus = isHighestStatus && !isSeenByOther;
         } else if (currentStatus === 'Read') {
           // Read status is internal - only show when clicked
-          shouldShowStatus = isHighestStatus && (isReadVisible || isClicked);
+          shouldShowStatus = isHighestStatus && shouldShowStatusText;
         }
         
-        // Override: Show status on most recent message (if not last-read) if status is needed
-        // OR show when clicked (for other messages or read status)
-        if (shouldShowStatusTextOnMostRecent && shouldShowStatus) {
-          // Most recent message: show status if it's needed (not hidden by higher priority)
-        } else if (shouldShowStatusTextOnOthers || isClicked) {
-          // Other messages or clicked: show status when clicked (but only if it's the highest)
+        // Rule: Status text shows only when clicked
+        if (!shouldShowStatusText) {
+          shouldShowStatus = false;
+        } else if (shouldShowStatusText) {
+          // When clicked, show status (but only if it's the highest)
           shouldShowStatus = isHighestStatus;
         }
       }
@@ -2818,7 +2823,7 @@ const Messages: React.FC = () => {
           <div className={`${gapClass} flex ${isOwn ? 'justify-end' : 'justify-start'}`}> 
             <div 
               id={`message-${message._id}`}
-              className={`relative group flex items-end gap-2 max-w-[85%] md:max-w-[80%] lg:max-w-[65%] xl:max-w-[60%] ${isOwn ? 'flex-row-reverse' : ''}`}
+              className={`relative group flex items-end gap-2 max-w-[75%] md:max-w-[70%] lg:max-w-[65%] xl:max-w-[60%] ${isOwn ? 'flex-row-reverse' : ''}`}
               onClick={() => handleMessageClick(message._id)}
             >
               {/* Their avatar for messages from others only */}
@@ -2833,7 +2838,7 @@ const Messages: React.FC = () => {
               <div className="relative" style={{ minHeight: '36px' }}>
                 {/* Layout-stable bubble: fixed min dimensions prevent reflow during status updates */}
                 <div 
-                  className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-primary-500 animate-pulse text-white' : 'bg-primary-600 text-white') : 'bg-gray-100 text-secondary-900'}`} 
+                  className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 text-secondary-900'}`} 
                   style={{ 
                     minWidth: '64px',
                     minHeight: '36px',
@@ -2852,139 +2857,17 @@ const Messages: React.FC = () => {
               </div>
             </div>
           </div>
-          {/* Most recent message that is also last-read: No status text by default, show status + tiny avatar when clicked */}
-          {isMostRecentAndLastRead && (
-            <div className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'}`}> 
-              <div className="flex flex-col items-end">
-                {/* CRITICAL: Use currentStatus as single source of truth */}
-                {/* Show status text only when clicked (isReadVisible) */}
-                {/* For read messages, currentStatus is already "Read" (from status determination logic) */}
-                {isReadVisible && (
-                  <span 
-                    className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 font-bold' : 'text-gray-400'}`} 
-                    style={{ 
-                      minWidth: '80px', 
-                      maxWidth: '80px',
-                      height: '16px',
-                      textAlign: 'right',
-                      display: 'inline-block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      lineHeight: '16px',
-                      transition: 'none' // Disable transitions to prevent jumps
-                    }}
-                  >
-                    {currentStatus}
-                  </span>
-                )}
-                {/* Tiny avatar always visible for read messages */}
-                {otherUserMemo?.profilePicture && (
-                  <img
-                    key={`read-indicator-${message._id}`}
-                    src={getProfileImageUrl(otherUserMemo.profilePicture) || '/default-avatar.png'}
-                    alt={otherUserMemo.name}
-                    className="w-4 h-4 rounded-full border border-gray-300 shadow-sm mt-0.5"
-                    title={`${otherUserMemo.name} has read this message`}
-                    style={{ flexShrink: 0 }} // Prevent avatar from causing layout shifts
-                  />
-                )}
-              </div>
-            </div>
-          )}
-          {/* Most recent message (not last-read): Status text only */}
-          {shouldShowStatusTextOnMostRecent && (
-            <div className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'}`}> 
-              <div className="flex flex-col items-end">
-                {/* Layout-stable status display: fixed dimensions prevent reflow/jumps */}
-                <span 
-                  className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 font-bold' : 'text-gray-400'}`} 
-                  style={{ 
-                    minWidth: '80px', 
-                    maxWidth: '80px',
-                    height: '16px',
-                    textAlign: 'right',
-                    display: 'inline-block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    lineHeight: '16px',
-                    transition: 'none' // Disable transitions to prevent jumps
-                  }}
-                >
-                  {currentStatus}
-                </span>
-              </div>
-            </div>
-          )}
-          {/* Other messages: Status text only when clicked */}
-          {shouldShowStatusTextOnOthers && (
-            <div className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'}`}> 
-              <div className="flex flex-col items-end">
-                {/* CRITICAL: Use currentStatus as single source of truth */}
-                {/* For read messages, currentStatus is already "Read" (from status determination logic) */}
-                {/* For non-read messages, currentStatus is "Sent", "Delivered", etc. */}
-                {/* Since this block only renders when clicked, show the status */}
-                {/* Layout-stable status display: fixed dimensions prevent reflow/jumps */}
-                <span 
-                  className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 font-bold' : 'text-gray-400'}`} 
-                  style={{ 
-                    minWidth: '80px', 
-                    maxWidth: '80px',
-                    height: '16px',
-                    textAlign: 'right',
-                    display: 'inline-block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    lineHeight: '16px',
-                    transition: 'none' // Disable transitions to prevent jumps
-                  }}
-                >
-                  {currentStatus}
-                </span>
-              </div>
-            </div>
-          )}
-          {/* Last-read message (if different from most recent): Tiny profile picture always, status when clicked (only if Read) */}
-          {shouldShowReadIndicatorOnLastRead && currentStatus === 'Read' && (
-            <div className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-              <div className="flex flex-col items-end">
-                {/* CRITICAL: Use currentStatus as single source of truth */}
-                {/* Show status text only when clicked (isReadVisible) */}
-                {/* For read messages, currentStatus is already "Read" (from status determination logic) */}
-                {isReadVisible && (
-                  <span 
-                    className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 font-bold' : 'text-gray-400'}`} 
-                    style={{ 
-                      minWidth: '80px', 
-                      maxWidth: '80px',
-                      height: '16px',
-                      textAlign: 'right',
-                      display: 'inline-block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      lineHeight: '16px',
-                      transition: 'none' // Disable transitions to prevent jumps
-                    }}
-                  >
-                    {currentStatus}
-                  </span>
-                )}
-                {/* Tiny avatar always visible for read messages */}
-                {otherUserMemo?.profilePicture && (
-                  <img
-                    key={`read-indicator-${message._id}`}
-                    src={getProfileImageUrl(otherUserMemo.profilePicture) || '/default-avatar.png'}
-                    alt={otherUserMemo.name}
-                    className="w-4 h-4 rounded-full border border-gray-300 shadow-sm mt-0.5"
-                    title={`${otherUserMemo.name} has read this message`}
-                    style={{ flexShrink: 0 }} // Prevent avatar from causing layout shifts
-                  />
-                )}
-              </div>
-            </div>
+          {/* Use shared component for consistent status rendering */}
+          {isOwn && currentStatus && (
+            <MessageStatusRenderer
+              isOwnMessage={isOwn}
+              status={currentStatus}
+              messageId={message._id}
+              isLatest={isLatestOwn}
+              isMostRecentlyRead={isLastSeen}
+              isActive={isClicked}
+              readIndicatorUser={otherUserMemo || undefined}
+            />
           )}
         </React.Fragment>
       );
@@ -2992,7 +2875,7 @@ const Messages: React.FC = () => {
   }, [renderedMessages, seenByCache, lastOwnIndex, stickyTimes, renderedStatus, messageStatus, messages, otherUserMemo, user?._id, readVisible, handleMessageClick, getHighestStatus, getStatusPriority]);
 
   return (
-    <div className="flex h-[calc(100vh-120px)] bg-gray-50">
+    <div className="flex max-h-[700px] bg-gray-50" style={{ height: 'calc(100vh - 120px)' }}>
       {/* Conversations List */}
       <div className="w-full md:w-[340px] lg:w-[380px] bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
@@ -3132,7 +3015,7 @@ const Messages: React.FC = () => {
             />
 
             {/* Messages - Scrollable area */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-3">
               <div className="min-h-full flex flex-col justify-end">
                 {messageListJSX}
               <div ref={messagesEndRef} />
@@ -3140,27 +3023,50 @@ const Messages: React.FC = () => {
             </div>
 
             {/* Typing indicator - Fixed above input, outside scrollable area */}
-            <div className="shrink-0 flex items-center px-4 py-1 min-h-[20px]">
-                  <TypingIndicator userName={otherTypingName || 'User'} isVisible={isOtherTyping} />
-            </div>
+            <TypingActivityBar users={typingUsersDisplay} />
 
             {/* Input - Fixed at bottom */}
-            <form onSubmit={sendMessage} className="shrink-0 p-4 border-t border-gray-200">
-              <div className="flex gap-2">
-                <input
-                  ref={messageInputRef}
-                  type="text"
-                  defaultValue=""
+            <form onSubmit={sendMessage} className="shrink-0 p-3 border-t border-gray-200">
+              <div className="flex gap-2 items-end">
+                <textarea
+                  ref={textareaRef}
+                  value={messageInput}
                   onChange={handleInputChange}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  onKeyDown={(e) => {
+                    const isMobile = isMobileDevice();
+                    
+                    if (e.key === 'Enter') {
+                      if (isMobile) {
+                        // Mobile: Enter always inserts newline (default behavior)
+                        // Do nothing, let default behavior handle it
+                        return;
+                      } else {
+                        // Desktop: Enter sends, Shift+Enter inserts newline
+                        if (e.shiftKey) {
+                          // Shift+Enter: Insert newline (default behavior)
+                          return;
+                        } else {
+                          // Enter alone: Send message
+                          e.preventDefault();
+                          if (messageInput.trim() && !sending && selectedConversation) {
+                            sendMessage(e as any);
+                          }
+                        }
+                      }
+                    }
+                  }}
+                  placeholder={isMobileDevice() ? "Type a message... (Enter for newline)" : "Type a message... (Enter to send, Shift+Enter for newline)"}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none overflow-y-auto"
+                  rows={1}
+                  style={{ minHeight: '36px', maxHeight: '160px' }}
                 />
                 <button
                   type="submit"
-                  disabled={sending}
-                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={sending || !messageInput.trim()}
+                  className="bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  title={isMobileDevice() ? "Send message" : "Send message (Enter)"}
                 >
-                  <PaperAirplaneIcon className="h-5 w-5" />
+                  <PaperAirplaneIcon className="h-4 w-4" />
                 </button>
               </div>
             </form>

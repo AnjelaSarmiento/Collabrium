@@ -21,13 +21,13 @@ interface SocketContextType {
   // Chat handlers
   joinConversation: (conversationId: string) => void;
   leaveConversation: (conversationId: string) => void;
-  onMessageNew: (callback: (data: { conversationId: string; message: any }) => void) => void;
-  onMessageSent: (callback: (data: { conversationId: string; messageId: string }) => void) => void;
-  onMessageDelivered: (callback: (data: { conversationId: string; messageId: string }) => void) => void;
-  onMessageSeen: (callback: (data: { conversationId: string; userId: string }) => void) => void;
-  onTyping: (callback: (data: { conversationId: string; userId: string; userName: string; isTyping: boolean; timestamp?: string }) => void) => void;
-  sendTyping: (conversationId: string, isTyping: boolean) => void;
-  onConversationUpdate: (callback: (data: { conversationId: string }) => void) => void;
+  onMessageNew: (callback: (data: { conversationId: string; message: any }) => void) => () => void;
+  onMessageSent: (callback: (data: { conversationId: string; messageId: string }) => void) => () => void;
+  onMessageDelivered: (callback: (data: { conversationId: string; messageId: string }) => void) => () => void;
+  onMessageSeen: (callback: (data: { conversationId: string; userId: string; seq?: number; timestamp?: string; nodeId?: string }) => void) => () => void;
+  onTyping: (callback: (data: { conversationId: string; userId: string; userName: string; isTyping: boolean; timestamp?: string }) => void) => () => void;
+  sendTyping: (conversationId: string, isTyping: boolean, userName?: string) => void;
+  onConversationUpdate: (callback: (data: { conversationId: string }) => void) => () => void;
   // Notification registration for global toast notifications
   registerNotificationCallback: (callback: (data: {
     conversationId: string;
@@ -90,12 +90,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   }, []);
   
   // Store callbacks in refs so they persist across socket reconnections
-  const messageNewCallbackRef = useRef<((data: { conversationId: string; message: any }) => void) | null>(null);
-  const messageDeliveredCallbackRef = useRef<((data: { conversationId: string; messageId: string }) => void) | null>(null);
-  const messageSentCallbackRef = useRef<((data: { conversationId: string; messageId: string }) => void) | null>(null);
-  const messageSeenCallbackRef = useRef<((data: { conversationId: string; userId: string }) => void) | null>(null);
-  const typingCallbackRef = useRef<((data: { conversationId: string; userId: string; userName: string; isTyping: boolean }) => void) | null>(null);
-  const conversationUpdateCallbackRef = useRef<((data: { conversationId: string }) => void) | null>(null);
+  const messageNewListenersRef = useRef<Set<(data: { conversationId: string; message: any }) => void>>(new Set());
+  const messageDeliveredListenersRef = useRef<Set<(data: { conversationId: string; messageId: string }) => void>>(new Set());
+  const messageSentListenersRef = useRef<Set<(data: { conversationId: string; messageId: string }) => void>>(new Set());
+  const messageSeenListenersRef = useRef<Set<(data: { conversationId: string; userId: string; seq?: number; timestamp?: string; nodeId?: string }) => void>>(new Set());
+  const typingListenersRef = useRef<Set<(data: { conversationId: string; userId: string; userName: string; isTyping: boolean; timestamp?: string }) => void>>(new Set());
+  const conversationUpdateListenersRef = useRef<Set<(data: { conversationId: string }) => void>>(new Set());
   const userStatusUpdateCallbackRef = useRef<((data: { userId: string; status: string }) => void) | null>(null);
 
   useEffect(() => {
@@ -157,9 +157,14 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           }
           
           // Also call the registered callback if one exists (for Messages.tsx and other components)
-          if (messageNewCallbackRef.current) {
-            messageNewCallbackRef.current(data);
-          }
+          messageNewListenersRef.current.forEach((callback) => {
+            try {
+              callback(data);
+            } catch (err) {
+              const error = err instanceof Error ? err : new Error(`message:new listener error: ${String(err)}`);
+              console.error('[SocketContext] message:new listener error', error);
+            }
+          });
         } catch (err) {
           // Only throw Error instances
           const error = err instanceof Error ? err : new Error(`message:new handler error: ${String(err)}`);
@@ -183,80 +188,105 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         // This automatically ACKs messages and calls any registered callbacks
         newSocket.off('message:new');
         newSocket.on('message:new', globalMessageNewHandler);
-        // Note: Individual handlers (message:sent, message:delivered, etc.) are now wrapped
-        // in validation and error handling in their respective on* functions above
-        // But we still need to register them here for the initial connection
-        if (messageSentCallbackRef.current) {
-          newSocket.off('message:sent');
-          // Wrap callback in error handler for initial connection
-          newSocket.on('message:sent', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
-                throw new Error('Invalid message:sent payload');
-              }
-              messageSentCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:sent handler error: ${String(err)}`);
-              console.error('[SocketContext] message:sent handler error', error);
+        newSocket.off('message:sent');
+        newSocket.on('message:sent', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
+              throw new Error('Invalid message:sent payload');
             }
-          });
-        }
-        if (messageDeliveredCallbackRef.current) {
-          newSocket.off('message:delivered');
-          newSocket.on('message:delivered', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
-                throw new Error('Invalid message:delivered payload');
+            messageSentListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:sent listener error: ${String(err)}`);
+                console.error('[SocketContext] message:sent listener error', error);
               }
-              messageDeliveredCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:delivered handler error: ${String(err)}`);
-              console.error('[SocketContext] message:delivered handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:sent handler error: ${String(err)}`);
+            console.error('[SocketContext] message:sent handler error', error);
+          }
+        });
+
+        newSocket.off('message:delivered');
+        newSocket.on('message:delivered', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
+              throw new Error('Invalid message:delivered payload');
             }
-          });
-        }
-        if (messageSeenCallbackRef.current) {
-          newSocket.off('message:seen');
-          newSocket.on('message:seen', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.userId || !evt.conversationId) {
-                throw new Error('Invalid message:seen payload');
+            messageDeliveredListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:delivered listener error: ${String(err)}`);
+                console.error('[SocketContext] message:delivered listener error', error);
               }
-              messageSeenCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:seen handler error: ${String(err)}`);
-              console.error('[SocketContext] message:seen handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:delivered handler error: ${String(err)}`);
+            console.error('[SocketContext] message:delivered handler error', error);
+          }
+        });
+
+        newSocket.off('message:seen');
+        newSocket.on('message:seen', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.userId || !evt.conversationId) {
+              throw new Error('Invalid message:seen payload');
             }
-          });
-        }
-        if (typingCallbackRef.current) {
-          newSocket.off('typing');
-          newSocket.on('typing', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.conversationId || !evt.userId || typeof evt.isTyping !== 'boolean') {
-                throw new Error('Invalid typing payload');
+            messageSeenListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:seen listener error: ${String(err)}`);
+                console.error('[SocketContext] message:seen listener error', error);
               }
-              typingCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`typing handler error: ${String(err)}`);
-              console.error('[SocketContext] typing handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:seen handler error: ${String(err)}`);
+            console.error('[SocketContext] message:seen handler error', error);
+          }
+        });
+
+        newSocket.off('typing');
+        newSocket.on('typing', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.conversationId || !evt.userId || typeof evt.isTyping !== 'boolean') {
+              throw new Error('Invalid typing payload');
             }
-          });
-        }
-        if (conversationUpdateCallbackRef.current) {
-          newSocket.off('conversation:update');
-          newSocket.on('conversation:update', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.conversationId) {
-                throw new Error('Invalid conversation:update payload');
+            typingListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`typing listener error: ${String(err)}`);
+                console.error('[SocketContext] typing listener error', error);
               }
-              conversationUpdateCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`conversation:update handler error: ${String(err)}`);
-              console.error('[SocketContext] conversation:update handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`typing handler error: ${String(err)}`);
+            console.error('[SocketContext] typing handler error', error);
+          }
+        });
+
+        newSocket.off('conversation:update');
+        newSocket.on('conversation:update', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.conversationId) {
+              throw new Error('Invalid conversation:update payload');
             }
-          });
-        }
+            conversationUpdateListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`conversation:update listener error: ${String(err)}`);
+                console.error('[SocketContext] conversation:update listener error', error);
+              }
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`conversation:update handler error: ${String(err)}`);
+            console.error('[SocketContext] conversation:update handler error', error);
+          }
+        });
         if (userStatusUpdateCallbackRef.current) {
           newSocket.off('user-status-update');
           newSocket.on('user-status-update', userStatusUpdateCallbackRef.current);
@@ -270,77 +300,106 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         // Reattach global message:new listener
         newSocket.off('message:new');
         newSocket.on('message:new', globalMessageNewHandler);
-        // Re-register handlers with error handling (same as connect handler above)
-        if (messageSentCallbackRef.current) {
-          newSocket.off('message:sent');
-          newSocket.on('message:sent', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
-                throw new Error('Invalid message:sent payload');
-              }
-              messageSentCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:sent handler error: ${String(err)}`);
-              console.error('[SocketContext] message:sent handler error', error);
+        // Re-register event handlers to dispatch to listeners
+        newSocket.off('message:sent');
+        newSocket.on('message:sent', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
+              throw new Error('Invalid message:sent payload');
             }
-          });
-        }
-        if (messageDeliveredCallbackRef.current) {
-          newSocket.off('message:delivered');
-          newSocket.on('message:delivered', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
-                throw new Error('Invalid message:delivered payload');
+            messageSentListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:sent listener error: ${String(err)}`);
+                console.error('[SocketContext] message:sent listener error', error);
               }
-              messageDeliveredCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:delivered handler error: ${String(err)}`);
-              console.error('[SocketContext] message:delivered handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:sent handler error: ${String(err)}`);
+            console.error('[SocketContext] message:sent handler error', error);
+          }
+        });
+
+        newSocket.off('message:delivered');
+        newSocket.on('message:delivered', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.messageId || !evt.conversationId) {
+              throw new Error('Invalid message:delivered payload');
             }
-          });
-        }
-        if (messageSeenCallbackRef.current) {
-          newSocket.off('message:seen');
-          newSocket.on('message:seen', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.userId || !evt.conversationId) {
-                throw new Error('Invalid message:seen payload');
+            messageDeliveredListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:delivered listener error: ${String(err)}`);
+                console.error('[SocketContext] message:delivered listener error', error);
               }
-              messageSeenCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`message:seen handler error: ${String(err)}`);
-              console.error('[SocketContext] message:seen handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:delivered handler error: ${String(err)}`);
+            console.error('[SocketContext] message:delivered handler error', error);
+          }
+        });
+
+        newSocket.off('message:seen');
+        newSocket.on('message:seen', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.userId || !evt.conversationId) {
+              throw new Error('Invalid message:seen payload');
             }
-          });
-        }
-        if (typingCallbackRef.current) {
-          newSocket.off('typing');
-          newSocket.on('typing', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.conversationId || !evt.userId || typeof evt.isTyping !== 'boolean') {
-                throw new Error('Invalid typing payload');
+            messageSeenListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`message:seen listener error: ${String(err)}`);
+                console.error('[SocketContext] message:seen listener error', error);
               }
-              typingCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`typing handler error: ${String(err)}`);
-              console.error('[SocketContext] typing handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`message:seen handler error: ${String(err)}`);
+            console.error('[SocketContext] message:seen handler error', error);
+          }
+        });
+
+        newSocket.off('typing');
+        newSocket.on('typing', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.conversationId || !evt.userId || typeof evt.isTyping !== 'boolean') {
+              throw new Error('Invalid typing payload');
             }
-          });
-        }
-        if (conversationUpdateCallbackRef.current) {
-          newSocket.off('conversation:update');
-          newSocket.on('conversation:update', (evt: any) => {
-            try {
-              if (!evt || typeof evt !== 'object' || !evt.conversationId) {
-                throw new Error('Invalid conversation:update payload');
+            typingListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`typing listener error: ${String(err)}`);
+                console.error('[SocketContext] typing listener error', error);
               }
-              conversationUpdateCallbackRef.current!(evt);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(`conversation:update handler error: ${String(err)}`);
-              console.error('[SocketContext] conversation:update handler error', error);
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`typing handler error: ${String(err)}`);
+            console.error('[SocketContext] typing handler error', error);
+          }
+        });
+
+        newSocket.off('conversation:update');
+        newSocket.on('conversation:update', (evt: any) => {
+          try {
+            if (!evt || typeof evt !== 'object' || !evt.conversationId) {
+              throw new Error('Invalid conversation:update payload');
             }
-          });
-        }
+            conversationUpdateListenersRef.current.forEach((callback) => {
+              try {
+                callback(evt);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(`conversation:update listener error: ${String(err)}`);
+                console.error('[SocketContext] conversation:update listener error', error);
+              }
+            });
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error(`conversation:update handler error: ${String(err)}`);
+            console.error('[SocketContext] conversation:update handler error', error);
+          }
+        });
         if (userStatusUpdateCallbackRef.current) {
           newSocket.off('user-status-update');
           newSocket.on('user-status-update', userStatusUpdateCallbackRef.current);
@@ -451,169 +510,69 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   // Chat handlers
   const joinConversation = (conversationId: string) => {
-    if (socket) socket.emit('join-room', `conversation:${conversationId}`);
+    if (socket) socket.emit('join-conversation', conversationId);
   };
 
   const leaveConversation = (conversationId: string) => {
-    if (socket) socket.emit('leave-room', `conversation:${conversationId}`);
+    if (socket) socket.emit('leave-conversation', conversationId);
   };
 
-  const onMessageNew = (callback: (data: { conversationId: string; message: any }) => void) => {
-    // Store callback so global handler can invoke it
-    messageNewCallbackRef.current = callback;
-    // Note: The global message:new handler in SocketContext will call this callback
-    // We don't replace the global listener here - it persists across route changes
-    // The global handler calls both the ACK and the registered callback
-  };
+  const onMessageNew = useCallback((callback: (data: { conversationId: string; message: any }) => void) => {
+    messageNewListenersRef.current.add(callback);
+    return () => {
+      messageNewListenersRef.current.delete(callback);
+    };
+  }, []);
 
-  const onMessageSent = (callback: (data: { conversationId: string; messageId: string }) => void) => {
-    messageSentCallbackRef.current = callback;
-    if (socket) {
-      socket.off('message:sent');
-      socket.on('message:sent', (evt: any) => {
-        try {
-          // Validate payload
-          if (!evt || typeof evt !== 'object') {
-            throw new Error('Invalid message:sent payload: payload is not an object');
-          }
-          if (!evt.messageId || typeof evt.messageId !== 'string') {
-            throw new Error('Invalid message:sent payload: missing or invalid messageId');
-          }
-          if (!evt.conversationId || typeof evt.conversationId !== 'string') {
-            throw new Error('Invalid message:sent payload: missing or invalid conversationId');
-          }
-          callback(evt);
-        } catch (err) {
-          // Only throw Error instances
-          const error = err instanceof Error ? err : new Error(`message:sent handler error: ${String(err)}`);
-          console.error('[SocketContext] message:sent handler error', error);
-          // Don't re-throw - log and continue
-        }
-      });
-    }
-  };
+  const onMessageSent = useCallback((callback: (data: { conversationId: string; messageId: string }) => void) => {
+    messageSentListenersRef.current.add(callback);
+    return () => {
+      messageSentListenersRef.current.delete(callback);
+    };
+  }, []);
 
-  const onMessageDelivered = (callback: (data: { conversationId: string; messageId: string }) => void) => {
-    messageDeliveredCallbackRef.current = callback;
-    if (socket) {
-      socket.off('message:delivered');
-      socket.on('message:delivered', (evt: any) => {
-        try {
-          // Validate payload
-          if (!evt || typeof evt !== 'object') {
-            throw new Error('Invalid message:delivered payload: payload is not an object');
-          }
-          if (!evt.messageId || typeof evt.messageId !== 'string') {
-            throw new Error('Invalid message:delivered payload: missing or invalid messageId');
-          }
-          if (!evt.conversationId || typeof evt.conversationId !== 'string') {
-            throw new Error('Invalid message:delivered payload: missing or invalid conversationId');
-          }
-          callback(evt);
-        } catch (err) {
-          // Only throw Error instances
-          const error = err instanceof Error ? err : new Error(`message:delivered handler error: ${String(err)}`);
-          console.error('[SocketContext] message:delivered handler error', error);
-          // Don't re-throw - log and continue
-        }
-      });
-    }
-  };
+  const onMessageDelivered = useCallback((callback: (data: { conversationId: string; messageId: string }) => void) => {
+    messageDeliveredListenersRef.current.add(callback);
+    return () => {
+      messageDeliveredListenersRef.current.delete(callback);
+    };
+  }, []);
 
-  const onMessageSeen = (callback: (data: { conversationId: string; userId: string }) => void) => {
-    messageSeenCallbackRef.current = callback;
-    if (socket) {
-      socket.off('message:seen');
-      socket.on('message:seen', (evt: any) => {
-        try {
-          // Validate payload
-          if (!evt || typeof evt !== 'object') {
-            throw new Error('Invalid message:seen payload: payload is not an object');
-          }
-          if (!evt.userId || typeof evt.userId !== 'string') {
-            throw new Error('Invalid message:seen payload: missing or invalid userId');
-          }
-          if (!evt.conversationId || typeof evt.conversationId !== 'string') {
-            throw new Error('Invalid message:seen payload: missing or invalid conversationId');
-          }
-          callback(evt);
-        } catch (err) {
-          // Only throw Error instances
-          const error = err instanceof Error ? err : new Error(`message:seen handler error: ${String(err)}`);
-          console.error('[SocketContext] message:seen handler error', error);
-          // Don't re-throw - log and continue
-        }
-      });
-    }
-  };
+  const onMessageSeen = useCallback((callback: (data: { conversationId: string; userId: string; seq?: number; timestamp?: string; nodeId?: string }) => void) => {
+    messageSeenListenersRef.current.add(callback);
+    return () => {
+      messageSeenListenersRef.current.delete(callback);
+    };
+  }, []);
 
-  const onTyping = (callback: (data: { conversationId: string; userId: string; userName: string; isTyping: boolean }) => void) => {
-    typingCallbackRef.current = callback;
-    if (socket) {
-      socket.off('typing');
-      socket.on('typing', (evt: any) => {
-        try {
-          // Validate payload
-          if (!evt || typeof evt !== 'object') {
-            throw new Error('Invalid typing payload: payload is not an object');
-          }
-          if (!evt.conversationId || typeof evt.conversationId !== 'string') {
-            throw new Error('Invalid typing payload: missing or invalid conversationId');
-          }
-          if (!evt.userId || typeof evt.userId !== 'string') {
-            throw new Error('Invalid typing payload: missing or invalid userId');
-          }
-          if (typeof evt.isTyping !== 'boolean') {
-            throw new Error('Invalid typing payload: missing or invalid isTyping');
-          }
-          callback(evt);
-        } catch (err) {
-          // Only throw Error instances
-          const error = err instanceof Error ? err : new Error(`typing handler error: ${String(err)}`);
-          console.error('[SocketContext] typing handler error', error);
-          // Don't re-throw - log and continue
-        }
-      });
-    }
-  };
+  const onTyping = useCallback((callback: (data: { conversationId: string; userId: string; userName: string; isTyping: boolean; timestamp?: string }) => void) => {
+    typingListenersRef.current.add(callback);
+    return () => {
+      typingListenersRef.current.delete(callback);
+    };
+  }, []);
 
-  const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
+  const sendTyping = useCallback((conversationId: string, isTyping: boolean, userName?: string) => {
     if (socket && isConnected) {
       try {
         socket.emit('typing', {
           conversationId,
-          isTyping
+          isTyping,
+          userName: userName || user?.name || 'User'
         });
       } catch (err) {
         const error = err instanceof Error ? err : new Error(`sendTyping error: ${String(err)}`);
         console.error('[SocketContext] sendTyping error', error);
       }
     }
-  }, [socket, isConnected]);
+  }, [socket, isConnected, user?.name]);
 
-  const onConversationUpdate = (callback: (data: { conversationId: string }) => void) => {
-    conversationUpdateCallbackRef.current = callback;
-    if (socket) {
-      socket.off('conversation:update');
-      socket.on('conversation:update', (evt: any) => {
-        try {
-          // Validate payload
-          if (!evt || typeof evt !== 'object') {
-            throw new Error('Invalid conversation:update payload: payload is not an object');
-          }
-          if (!evt.conversationId || typeof evt.conversationId !== 'string') {
-            throw new Error('Invalid conversation:update payload: missing or invalid conversationId');
-          }
-          callback(evt);
-        } catch (err) {
-          // Only throw Error instances
-          const error = err instanceof Error ? err : new Error(`conversation:update handler error: ${String(err)}`);
-          console.error('[SocketContext] conversation:update handler error', error);
-          // Don't re-throw - log and continue
-        }
-      });
-    }
-  };
+  const onConversationUpdate = useCallback((callback: (data: { conversationId: string }) => void) => {
+    conversationUpdateListenersRef.current.add(callback);
+    return () => {
+      conversationUpdateListenersRef.current.delete(callback);
+    };
+  }, []);
 
   const value: SocketContextType = {
     socket,

@@ -23,6 +23,7 @@ const walletRoutes = require('./routes/wallet');
 const adminRoutes = require('./routes/admin');
 const messageRoutes = require('./routes/messages');
 const notificationRoutes = require('./routes/notifications');
+const collaborationRoutes = require('./routes/collaboration');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -127,6 +128,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/collaboration', collaborationRoutes);
 
 // Store active user sessions for presence tracking
 const activeUsers = new Map(); // Map<userId, { sockets: Set<socketId>, status: 'online'|'away', lastSeen: Date }>
@@ -470,16 +472,34 @@ io.on('connection', (socket) => {
     });
   }
 
-  // Join room
+  // Join collaboration room (legacy)
   socket.on('join-room', (roomId) => {
-    socket.join(roomId);
-    console.log(`[Socket] ✅ Socket ${socket.id} joined room: ${roomId}`);
+    const roomName = `room:${roomId}`;
+    socket.join(roomName);
+    console.log(`[Socket] ✅ Socket ${socket.id} joined room: ${roomName}`);
   });
 
-  // Leave room
+  // Leave collaboration room (legacy)
   socket.on('leave-room', (roomId) => {
-    socket.leave(roomId);
-    console.log(`[Socket] ⚠️ Socket ${socket.id} left room: ${roomId}`);
+    const roomName = `room:${roomId}`;
+    socket.leave(roomName);
+    console.log(`[Socket] ⚠️ Socket ${socket.id} left room: ${roomName}`);
+  });
+
+  // Join conversation room (for DMs / messages)
+  socket.on('join-conversation', (conversationId) => {
+    if (!conversationId) return;
+    const roomName = `conversation:${conversationId}`;
+    socket.join(roomName);
+    console.log(`[Socket] ✅ Socket ${socket.id} joined conversation: ${roomName}`);
+  });
+
+  // Leave conversation room
+  socket.on('leave-conversation', (conversationId) => {
+    if (!conversationId) return;
+    const roomName = `conversation:${conversationId}`;
+    socket.leave(roomName);
+    console.log(`[Socket] ⚠️ Socket ${socket.id} left conversation: ${roomName}`);
   });
 
   // Chat messages
@@ -613,8 +633,9 @@ io.on('connection', (socket) => {
   // Typing indicator handler with server-side throttling/coalescing
   socket.on('typing', (payload) => {
     try {
-      const { conversationId, isTyping } = payload || {};
-      const senderUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+      const { conversationId, isTyping, userName: payloadUserName } = payload || {};
+      const rawUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+      const senderUserId = rawUserId ? rawUserId.toString() : null;
       
       if (!conversationId || !senderUserId) {
         console.warn('[Typing] Invalid typing payload:', payload);
@@ -630,18 +651,18 @@ io.on('connection', (socket) => {
       const timeSinceLastBroadcast = throttleData ? now - throttleData.lastBroadcast : Infinity;
       
       // Get user name from cache or throttle data (avoid DB query on every event)
-      let userName = 'User';
+      let userName = payloadUserName || 'User';
       const cachedUser = userNamesCache.get(senderUserId);
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       
       // Use cached userName from throttle data if available (from previous event)
       if (throttleData && throttleData.userName) {
         userName = throttleData.userName;
-      } else if (cachedUser && (now - cachedUser.cachedAt < CACHE_TTL)) {
+      } else if (!payloadUserName && cachedUser && (now - cachedUser.cachedAt < CACHE_TTL)) {
         userName = cachedUser.name;
       } else {
         // Fetch from database asynchronously (don't block the event)
-        // Use 'User' as fallback for now, update cache in background
+        // Use current userName as fallback for now, update cache in background
         (async () => {
           try {
             const User = require('./models/User');

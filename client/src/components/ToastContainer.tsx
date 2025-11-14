@@ -275,6 +275,7 @@ const ToastContainer: React.FC = () => {
             });
           }
         }
+
       });
       setScrollableToasts(newScrollable);
     };
@@ -516,4 +517,5 @@ const ToastContainer: React.FC = () => {
 };
 
 export default ToastContainer;
+
 

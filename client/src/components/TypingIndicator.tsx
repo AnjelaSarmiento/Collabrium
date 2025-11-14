@@ -13,7 +13,9 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = memo(({ userName, isVisi
   // Pre-reserve height to prevent layout shifts (20px min-height)
   return (
     <div 
-      className="text-xs text-gray-500"
+      className="text-xs text-[#3D61D4]"
+      aria-live="polite"
+      aria-label={isVisible ? `${userName} is typing` : undefined}
       style={{
         minHeight: '20px',
         height: isVisible ? 'auto' : '20px',
@@ -24,7 +26,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = memo(({ userName, isVisi
     >
       {isVisible && (
         <span className="animate-pulse">
-          {userName} is typing…
+          Typing…
         </span>
       )}
     </div>

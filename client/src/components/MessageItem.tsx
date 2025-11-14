@@ -104,7 +104,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
           )}
           <div className="relative" style={{ minHeight: '36px' }}>
             <div
-              className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-primary-500 animate-pulse text-white' : 'bg-primary-600 text-white') : 'bg-gray-100 text-secondary-900'}`}
+              className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 text-secondary-900'}`}
               style={{
                 minWidth: '64px',
                 minHeight: '36px',

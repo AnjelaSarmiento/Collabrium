@@ -138,7 +138,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
   };
 
   return (
-    <div className="p-4 border-b border-gray-200">
+    <div className="p-3 border-b border-gray-200">
       <div className="flex items-center justify-between">
         <div className="flex items-start gap-3">
           <div className="relative flex-shrink-0">

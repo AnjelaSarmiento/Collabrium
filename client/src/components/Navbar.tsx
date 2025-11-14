@@ -8,13 +8,16 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   BellIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { getProfileImageUrl } from '../utils/image';
 import NotificationsDropdown from './NotificationsDropdown';
+import MessagesDropdown from './MessagesDropdown';
 import axios from 'axios';
 import { useSocket } from '../contexts/SocketContext';
 import { useNotificationDispatcher, useDispatchedUpdates } from '../contexts/NotificationDispatcherContext';
 import { DispatchedUpdate } from '../services/NotificationDispatcher';
+import { useMessagesWidget } from '../contexts/MessagesWidgetContext';
 
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -23,8 +26,11 @@ const Navbar: React.FC = () => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
   const { socket } = useSocket();
   const dispatcher = useNotificationDispatcher();
+  const { isDropdownOpen, openDropdown, closeDropdown } = useMessagesWidget();
+  const userIdDependency = user?._id ? user._id.toString() : '';
 
   const handleLogout = () => {
     logout();
@@ -103,6 +109,88 @@ const Navbar: React.FC = () => {
 
   useDispatchedUpdates(handleDispatchedUpdate);
 
+  // Load unread messages count
+  const loadMessagesCount = React.useCallback(async () => {
+    try {
+      const res = await axios.get('/messages/conversations');
+      if (res.data.success) {
+        const conversations = res.data.conversations || [];
+        const totalUnread = conversations.reduce((sum: number, conv: any) => {
+          return sum + (conv.unreadCount || 0);
+        }, 0);
+        setUnreadMessagesCount(totalUnread);
+      }
+    } catch (err) {
+      console.error('[Navbar] Failed to load messages count:', err);
+      setUnreadMessagesCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadMessagesCount();
+    } else {
+      setUnreadMessagesCount(0);
+    }
+  }, [isAuthenticated, loadMessagesCount]);
+
+  // Initialize messages count and subscribe to real-time updates
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Load initial count
+    loadMessagesCount();
+
+    const currentUserId = user?._id ? user._id.toString() : undefined;
+
+    // Listen for new messages
+    const handleMessageNew = (data: { conversationId: string; message: any }) => {
+      if (!data?.message) return;
+      const sender = data.message.sender;
+      let senderId: string | undefined;
+      if (typeof sender === 'string') {
+        senderId = sender;
+      } else if (sender?._id) {
+        senderId = sender._id.toString();
+      }
+
+      const conversationId = data.conversationId;
+
+      // Ignore messages sent by the current user
+      if (senderId && currentUserId && senderId === currentUserId) {
+        return;
+      }
+
+      if (window.__activeConversationId === conversationId) {
+        // User is viewing the conversation; ensure server count stays in sync
+        loadMessagesCount();
+      } else {
+        setUnreadMessagesCount(prev => prev + 1);
+        loadMessagesCount();
+      }
+    };
+
+    // Listen for conversation read events (when user opens a conversation)
+    const handleConversationRead = () => {
+      // Refresh count when conversation is read
+      loadMessagesCount();
+    };
+
+    socket?.on('message:new', handleMessageNew);
+    window.addEventListener('conversation:read', handleConversationRead);
+
+    // Refresh count periodically to catch any missed updates
+    const interval = setInterval(() => {
+      loadMessagesCount();
+    }, 30000); // Every 30 seconds
+
+    return () => {
+      socket?.off('message:new', handleMessageNew);
+      window.removeEventListener('conversation:read', handleConversationRead);
+      clearInterval(interval);
+    };
+  }, [socket, loadMessagesCount, isAuthenticated, userIdDependency]);
+
   // Open/close dropdown; when opening, mark all as read and reset count
   const toggleNotifications = async () => {
     const next = !isNotifOpen;
@@ -140,6 +228,32 @@ const Navbar: React.FC = () => {
                   Wallet
                 </Link>
                 
+                {/* Messages Button */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isDropdownOpen) {
+                        closeDropdown();
+                      } else {
+                        openDropdown();
+                      }
+                    }}
+                    className="relative p-2 rounded-full hover:bg-secondary-50 text-secondary-700 hover:text-primary-600 transition-colors"
+                    aria-label="Open messages"
+                  >
+                    <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    {unreadMessagesCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-primary-600 text-white text-[10px] min-w-[16px] h-[16px] px-1">
+                        {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                      </span>
+                    )}
+                  </button>
+                  {isDropdownOpen && (
+                    <MessagesDropdown onClose={closeDropdown} />
+                  )}
+                </div>
+
                 {/* Notifications Bell */}
                 <div className="relative">
                   <button
