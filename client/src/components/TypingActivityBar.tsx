@@ -24,13 +24,13 @@ const TypingActivityBar: React.FC<TypingActivityBarProps> = ({ users }) => {
         <div className="h-4" />
       ) : (
         <div className="flex items-center gap-3">
-          <div className="flex -space-x-2">
+          <div className="flex -space-x-1.5">
             {visibleUsers.map((typingUser) => (
               <img
                 key={typingUser.userId}
                 src={getProfileImageUrl(typingUser.profilePicture) || '/default-avatar.png'}
                 alt={`${typingUser.name}'s avatar`}
-                className="h-6 w-6 rounded-full border-2 border-white object-cover shadow-sm"
+                className="h-4 w-4 rounded-full border border-white object-cover"
               />
             ))}
           </div>

@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { getProfileImageUrl } from '../utils/image';
 import { formatRelativeTime } from '../utils/formatTime';
-import { getNotificationTypeLabel, groupNotificationsByTime } from '../utils/notificationLabels';
+import { groupNotificationsByTime } from '../utils/notificationLabels';
 import { useDispatchedUpdates } from '../contexts/NotificationDispatcherContext';
 import { DispatchedUpdate } from '../services/NotificationDispatcher';
 
@@ -24,6 +24,12 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
   const navigate = useNavigate();
   // Track clicked notifications to prevent re-navigation on list refresh
   const clickedNotificationsRef = useRef<Set<string>>(new Set());
+  
+  // Memoize grouped notifications to prevent re-grouping on every render
+  const groupedNotifications = useMemo(() => {
+    if (items.length === 0) return [];
+    return groupNotificationsByTime(items);
+  }, [items]);
 
   // Helper: Render message with actor name bolded if it appears in the text
   const renderMessage = (message: string, actorName: string | undefined, isRead: boolean) => {
@@ -82,7 +88,7 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
     if (!imageSrc) return null;
     return (
       <span
-        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white`}
+        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white dark:ring-[var(--bg-card)]`}
         aria-hidden="true"
       >
         <img src={imageSrc} alt="" className="h-3 w-3 object-contain" />
@@ -142,11 +148,11 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
       const acceptResponse = await axios.post(`/users/accept/${userId}`);
       console.log('[NotificationsDropdown] Accept response:', acceptResponse.data);
       
-      // Server handles deletion and emits refresh events
-      // Just refresh the notification list to reflect server state
-      const res = await axios.get('/notifications', { params: { page: 1, pageSize: 10 } });
-      const data = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-      setItems(data);
+      // Remove the accepted notification from the list immediately
+      setItems(prev => prev.filter(item => item._id !== n._id));
+      
+      // Silently refresh to get updated list from server
+      loadNotifications(true);
       
       console.log('[NotificationsDropdown] Accept completed successfully');
     } catch (error: any) {
@@ -165,11 +171,11 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
       // Decline the connection request - server handles notification deletion
       await axios.post(`/users/decline/${userId}`);
       
-      // Server handles deletion and emits refresh events
-      // Just refresh the notification list to reflect server state
-      const res = await axios.get('/notifications', { params: { page: 1, pageSize: 10 } });
-      const data = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-      setItems(data);
+      // Remove the declined notification from the list immediately
+      setItems(prev => prev.filter(item => item._id !== n._id));
+      
+      // Silently refresh to get updated list from server
+      loadNotifications(true);
     } catch (error) {
       console.error('Failed to decline connection:', error);
     }
@@ -246,17 +252,53 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
   };
 
   // Load notifications function
-  const loadNotifications = useCallback(async () => {
+  // Exclude message notifications - they should only appear in Messages dropdown
+  const loadNotifications = useCallback(async (silent: boolean = false) => {
     try {
+      if (!silent) {
       setLoading(true);
+      }
       const res = await axios.get('/notifications', { params: { page: 1, pageSize: 10 } });
       const data = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-      setItems(data);
+      // Filter out message notifications - they belong in Messages dropdown only
+      const filteredData = data.filter((item: NotificationItem) => item.type !== 'message');
+      
+      // Merge with existing items to preserve state and prevent flickering
+      setItems(prev => {
+        // Create a map of existing items by ID for quick lookup
+        const existingMap = new Map(prev.map(item => [item._id, item]));
+        
+        // Merge new items with existing ones, preserving read state and other properties
+        const merged = filteredData.map((newItem: NotificationItem) => {
+          const existing = existingMap.get(newItem._id);
+          if (existing) {
+            // Preserve existing item's state (like read status) but update with new data
+            return {
+              ...newItem,
+              read: existing.read !== undefined ? existing.read : newItem.read,
+            };
+          }
+          return newItem;
+        });
+        
+        // Sort by createdAt (newest first) to maintain order
+        merged.sort((a: NotificationItem, b: NotificationItem) => {
+          const timeA = new Date(a.createdAt || 0).getTime();
+          const timeB = new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        });
+        
+        return merged;
+      });
     } catch {
       // On error, show nothing rather than ephemeral toasts
+      if (!silent) {
       setItems([]);
+      }
     } finally {
+      if (!silent) {
       setLoading(false);
+      }
     }
   }, []);
 
@@ -272,93 +314,140 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
     const hasNewNotifications = update.notifications.length > 0;
     const needsRefresh = update.refreshNeeded;
     
-    if (hasNewNotifications || needsRefresh) {
-      console.log('[NotificationsDropdown] 📬 Received dispatched update - refetching notifications (notifications:', update.notifications.length, ', refresh:', needsRefresh, ')');
-      // Refetch notifications after buffer delay (all surfaces update together)
-      loadNotifications();
+    if (hasNewNotifications) {
+      // Add new notifications incrementally without full refetch
+      const newNotifications = update.notifications
+        .filter((n: any) => n.type !== 'message') // Exclude message notifications
+        .map((n: any) => ({
+          _id: n.metadata?.notificationId || n._id,
+          type: n.type,
+          actor: n.actor,
+          message: n.message || '',
+          metadata: n.metadata,
+          createdAt: n.timestamp || n.createdAt || new Date().toISOString(),
+          read: n.read || false,
+        }))
+        .filter((n: NotificationItem) => n._id); // Only include items with valid IDs
+      
+      if (newNotifications.length > 0) {
+        console.log('[NotificationsDropdown] 📬 Adding new notifications incrementally:', newNotifications.length);
+        setItems(prev => {
+          // Create a set of existing IDs to avoid duplicates
+          const existingIds = new Set(prev.map(item => item._id));
+          
+          // Add only new notifications that don't already exist
+          const toAdd = newNotifications.filter(n => n._id && !existingIds.has(n._id));
+          
+          if (toAdd.length === 0) {
+            return prev; // No new items, return existing list unchanged
+          }
+          
+          // Merge new items with existing ones, maintaining order (newest first)
+          const merged = [...toAdd, ...prev];
+          merged.sort((a: NotificationItem, b: NotificationItem) => {
+            const timeA = new Date(a.createdAt || 0).getTime();
+            const timeB = new Date(b.createdAt || 0).getTime();
+            return timeB - timeA;
+          });
+          
+          return merged;
+        });
+      }
+    } else if (needsRefresh) {
+      console.log('[NotificationsDropdown] 📬 Received refresh request - silently refetching notifications');
+      // Silent refresh - don't show loading state
+      loadNotifications(true);
     }
   });
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    if (!onClose) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        // Check if click is on the Notifications button (don't close if clicking the button)
+        const notificationsButton = document.querySelector('[aria-label="Open notifications"]');
+        if (notificationsButton && notificationsButton.contains(target)) {
+          return; // Don't close if clicking the button
+        }
         onClose();
       }
     };
-    document.addEventListener('mousedown', handler);
+
+    // Add a small delay to avoid immediate close when opening
+    const timeout = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    
     return () => {
-      document.removeEventListener('mousedown', handler);
+      clearTimeout(timeout);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [onClose]);
 
   return (
-    <div ref={containerRef} className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-secondary-200 z-50">
-      <div className="p-3 border-b border-secondary-200 flex items-center justify-between">
-        <span className="text-sm font-medium text-secondary-900">Notifications</span>
-        <button onClick={() => { onClose(); navigate('/app/notifications'); }} className="text-xs text-primary-700 hover:underline">
+    <div ref={containerRef} className="fixed top-16 right-4 w-96 bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-xl border border-secondary-200 dark:border-[var(--border-color)] z-50 max-h-[600px] flex flex-col overflow-hidden">
+      <div className="p-3 border-b border-secondary-200 dark:border-[var(--border-color)] flex items-center justify-between flex-shrink-0 bg-white dark:bg-[var(--bg-card)]">
+        <span className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">Notifications</span>
+        <button onClick={() => { onClose(); navigate('/app/notifications'); }} className="text-xs text-primary-700 dark:text-[var(--link-color)] hover:underline">
           See All
         </button>
       </div>
-      <div className="max-h-[60vh] overflow-y-auto scrollbar-hide relative">
+      <div className="flex-1 overflow-y-auto scrollbar-hide min-h-0 relative">
         {/* Subtle bottom fade hint */}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
-        {loading && <div className="p-4 text-sm text-secondary-600">Loading…</div>}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent dark:from-[var(--bg-card)] dark:to-transparent" />
+        {loading && <div className="p-4 text-sm text-secondary-600 dark:text-[var(--text-secondary)]">Loading…</div>}
         {!loading && items.length === 0 && (
-          <div className="p-4 text-sm text-secondary-600">No notifications</div>
+          <div className="p-4 text-sm text-secondary-600 dark:text-[var(--text-secondary)]">No notifications</div>
         )}
-        {!loading && items.length > 0 && (() => {
-          const grouped = groupNotificationsByTime(items);
-          return (
+        {!loading && items.length > 0 && (
             <>
-              {grouped.map((group) => (
+              {groupedNotifications.map((group: any) => (
                 <div key={group.timeGroup}>
                   {/* Time group header */}
-                  <div className="px-3 py-2 bg-secondary-50 border-b border-secondary-200">
-                    <span className="text-xs font-semibold text-secondary-600 uppercase tracking-wide">
+                  <div className="px-3 py-2 bg-secondary-50 dark:bg-[var(--bg-hover)] border-b border-secondary-200 dark:border-[var(--border-color)]">
+                    <span className="text-xs font-semibold text-secondary-600 dark:text-[var(--text-secondary)] uppercase tracking-wide">
                       {group.timeGroup}
                     </span>
                   </div>
                   {/* Notifications in this time group */}
-        <ul className="divide-y divide-secondary-200">
-                    {group.notifications.map((n, idx) => {
+        <ul className="divide-y divide-secondary-200 dark:divide-[var(--border-color)]">
+                    {group.notifications.map((n: NotificationItem) => {
                       const isConnectionAccepted = n.type === 'connection_accepted';
                       const isClickable = !isConnectionAccepted;
                       
+                      // Use stable key - always use _id, fallback to composite key if missing
+                      const stableKey = n._id || `${n.type}-${n.actor?._id}-${n.createdAt}`;
+                      
                       return (
                         <li
-                          key={n._id || idx}
-                          className={`notification-item ${n.read ? '' : 'unread'} p-3 flex items-start gap-3 relative ${
-                            isClickable ? 'cursor-pointer hover:bg-gray-100' : ''
-                          }`}
-                          style={n.read ? undefined : { backgroundColor: '#E8F2FF' }}
+                          key={stableKey}
+                          className={`notification-item ${n.read ? '' : 'unread'} p-3 flex items-start gap-3 relative rounded-lg ${
+                            isClickable ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)]' : ''
+                          } ${n.read ? '' : 'bg-[#EFF6FF] dark:bg-[var(--bg-hover)]'}`}
                           onClick={() => isClickable && handleNotificationClick(n)}
                         >
-                          {/* Type label - top-left corner */}
-                          <div className="absolute top-2 left-2">
-                            <span className="text-[10px] font-semibold text-secondary-500 uppercase tracking-wide bg-white/80 px-1.5 py-0.5 rounded">
-                              {getNotificationTypeLabel(n.type)}
-                            </span>
-                          </div>
-                          <div className="relative flex-shrink-0 mt-5">
+                          <div className="relative flex-shrink-0">
                             <img src={getProfileImageUrl(n.actor?.profilePicture) || '/default-avatar.png'} alt={n.actor?.name} className="h-9 w-9 rounded-full object-cover" />
                             {renderTypeBadge(n.type)}
                           </div>
-                          <div className="flex-1 min-w-0 mt-5">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 {n.type === 'message' ? (
-                                  <div className={`text-sm ${n.read ? 'text-secondary-900 font-normal' : 'text-secondary-900 font-normal'}`}>
+                                  <div className={`text-sm ${n.read ? 'text-secondary-900 font-normal' : 'text-secondary-900 font-normal'} dark:text-[var(--text-primary)]`}>
                                     <div className="font-medium">{n.actor?.name}</div>
                                     <div className="mt-1 font-normal">{n.message}</div>
                                   </div>
                                 ) : (
-                                  <p className={`text-sm ${n.read ? 'text-secondary-700 font-normal' : 'text-secondary-900 font-semibold'}`}>
+                                  <p className={`text-sm ${n.read ? 'text-secondary-700 font-normal' : 'text-secondary-900 font-semibold'} dark:text-[var(--text-primary)]`}>
                                     {renderMessage(n.message, n.actor?.name, !!n.read)}
                                   </p>
                                 )}
                               </div>
                               {n.createdAt && (
-                                <span className="text-xs text-secondary-500 flex-shrink-0 whitespace-nowrap">
+                                <span className="text-xs text-secondary-500 dark:text-[var(--text-secondary)] flex-shrink-0 whitespace-nowrap">
                                   {formatRelativeTime(n.createdAt)}
                                 </span>
                               )}
@@ -380,7 +469,7 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
                                     e.stopPropagation();
                                     handleDeclineConnection(n);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                                  className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-[var(--text-primary)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-md hover:bg-gray-200 dark:hover:bg-[var(--bg-panel)] transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-[var(--link-color)]"
                                 >
                                   Decline
                                 </button>
@@ -394,8 +483,7 @@ const NotificationsDropdown: React.FC<{ onClose: () => void }> = ({ onClose }) =
                 </div>
               ))}
             </>
-          );
-        })()}
+        )}
       </div>
     </div>
   );

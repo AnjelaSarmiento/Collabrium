@@ -124,13 +124,13 @@ const TasksTab: React.FC<TasksTabProps> = ({ roomId }) => {
   };
 
   if (loading) {
-    return <div className="p-4 text-center text-secondary-600">Loading tasks...</div>;
+    return <div className="p-4 text-center text-secondary-600 dark:text-[var(--text-secondary)]">Loading tasks...</div>;
   }
 
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="font-medium text-secondary-900">Tasks ({tasks.length})</h4>
+        <h4 className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">Tasks ({tasks.length})</h4>
         <button
           onClick={() => setShowForm(!showForm)}
           className="btn-secondary p-2"
@@ -141,7 +141,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ roomId }) => {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreateTask} className="mb-4 p-3 bg-secondary-50 rounded-lg">
+        <form onSubmit={handleCreateTask} className="mb-4 p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
           <input
             type="text"
             placeholder="Task title"
@@ -190,9 +190,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ roomId }) => {
 
       <div className="space-y-2">
         {tasks.map(task => (
-          <div key={task._id} className="p-3 bg-secondary-50 rounded-lg">
+          <div key={task._id} className="p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
             <div className="flex justify-between items-start mb-2">
-              <h5 className="font-medium text-secondary-900 text-sm">{task.title}</h5>
+              <h5 className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm">{task.title}</h5>
               <button
                 onClick={() => handleDeleteTask(task._id)}
                 className="text-secondary-400 hover:text-red-600"
@@ -202,7 +202,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ roomId }) => {
               </button>
             </div>
             {task.description && (
-              <p className="text-xs text-secondary-600 mb-2">{task.description}</p>
+              <p className="text-xs text-secondary-600 dark:text-[var(--text-secondary)] mb-2">{task.description}</p>
             )}
             <div className="flex items-center gap-2 mb-2">
               <select
@@ -216,26 +216,26 @@ const TasksTab: React.FC<TasksTabProps> = ({ roomId }) => {
                 <option value="Cancelled">Cancelled</option>
               </select>
               <span className={`px-2 py-1 text-xs rounded-full ${
-                task.priority === 'Urgent' ? 'bg-red-100 text-red-800' :
-                task.priority === 'High' ? 'bg-orange-100 text-orange-800' :
-                task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-green-100 text-green-800'
+                task.priority === 'Urgent' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200' :
+                task.priority === 'High' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
+                task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
               }`}>
                 {task.priority}
               </span>
             </div>
             {task.assignedTo && (
-              <p className="text-xs text-secondary-500">Assigned to: {task.assignedTo.name}</p>
+              <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">Assigned to: {task.assignedTo.name}</p>
             )}
             {task.dueDate && (
-              <p className="text-xs text-secondary-500">
+              <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 Due: {new Date(task.dueDate).toLocaleDateString()}
               </p>
             )}
           </div>
         ))}
         {tasks.length === 0 && (
-          <p className="text-center text-secondary-500 text-sm py-8">No tasks yet</p>
+          <p className="text-center text-secondary-500 dark:text-[var(--text-secondary)] text-sm py-8">No tasks yet</p>
         )}
       </div>
     </div>

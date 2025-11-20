@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Bars3Icon,
@@ -22,15 +22,17 @@ import { useMessagesWidget } from '../contexts/MessagesWidgetContext';
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
-  const { socket } = useSocket();
+  const { socket, onMessageNew } = useSocket();
   const dispatcher = useNotificationDispatcher();
   const { isDropdownOpen, openDropdown, closeDropdown } = useMessagesWidget();
   const userIdDependency = user?._id ? user._id.toString() : '';
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -57,7 +59,13 @@ const Navbar: React.FC = () => {
     loadCount();
     
     // Handle new notifications via socket - route through dispatcher
-    const onNotif = (data: { read?: boolean }) => {
+    // Exclude message notifications - they should only appear in Messages dropdown
+    const onNotif = (data: { read?: boolean; type?: string }) => {
+      // Skip message notifications - they belong in Messages dropdown only
+      if (data.type === 'message') {
+        console.log('[Navbar] Skipping message notification from bell count - messages only appear in Messages dropdown');
+        return;
+      }
       // Only increment if unread - route through dispatcher for buffering
       if (data.read !== true) {
         dispatcher.dispatch({
@@ -143,7 +151,7 @@ const Navbar: React.FC = () => {
 
     const currentUserId = user?._id ? user._id.toString() : undefined;
 
-    // Listen for new messages
+    // Listen for new messages using proper socket context handler
     const handleMessageNew = (data: { conversationId: string; message: any }) => {
       if (!data?.message) return;
       const sender = data.message.sender;
@@ -165,7 +173,9 @@ const Navbar: React.FC = () => {
         // User is viewing the conversation; ensure server count stays in sync
         loadMessagesCount();
       } else {
+        // Optimistically increment count immediately
         setUnreadMessagesCount(prev => prev + 1);
+        // Then refresh from server to ensure accuracy
         loadMessagesCount();
       }
     };
@@ -176,8 +186,20 @@ const Navbar: React.FC = () => {
       loadMessagesCount();
     };
 
-    socket?.on('message:new', handleMessageNew);
+    // Listen for unified message count update events from other components
+    const handleMessageCountUpdate = (event: CustomEvent) => {
+      const { totalUnread } = event.detail || {};
+      if (typeof totalUnread === 'number') {
+        console.log('[Navbar] Received message count update event:', totalUnread);
+        setUnreadMessagesCount(totalUnread);
+      }
+    };
+
+    // Use proper socket context handler instead of direct socket.on
+    const offMessageNew = onMessageNew(handleMessageNew);
+    
     window.addEventListener('conversation:read', handleConversationRead);
+    window.addEventListener('messages:count-update', handleMessageCountUpdate as EventListener);
 
     // Refresh count periodically to catch any missed updates
     const interval = setInterval(() => {
@@ -185,11 +207,12 @@ const Navbar: React.FC = () => {
     }, 30000); // Every 30 seconds
 
     return () => {
-      socket?.off('message:new', handleMessageNew);
+      offMessageNew();
       window.removeEventListener('conversation:read', handleConversationRead);
+      window.removeEventListener('messages:count-update', handleMessageCountUpdate as EventListener);
       clearInterval(interval);
     };
-  }, [socket, loadMessagesCount, isAuthenticated, userIdDependency]);
+  }, [socket, loadMessagesCount, isAuthenticated, userIdDependency, user]);
 
   // Open/close dropdown; when opening, mark all as read and reset count
   const toggleNotifications = async () => {
@@ -197,33 +220,82 @@ const Navbar: React.FC = () => {
     setIsNotifOpen(next);
   };
 
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (profileMenuRef.current && !profileMenuRef.current.contains(target)) {
+        // Check if click is on the profile button (don't close if clicking the button)
+        const profileButton = profileMenuRef.current.querySelector('button');
+        if (profileButton && profileButton.contains(target)) {
+          return; // Don't close if clicking the button
+        }
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    // Add a small delay to avoid immediate close when opening
+    const timeout = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
+
+  const navLinkClasses = (path: string) => {
+    const base = 'px-2 lg:px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap border border-transparent';
+    const isActive = location.pathname === path || location.pathname.startsWith(`${path}/`);
+    const active =
+      'bg-primary-50 text-primary-600 border-primary-100 dark:bg-[var(--bg-hover)] dark:text-[var(--link-color)] dark:border-[var(--border-color)] shadow-sm';
+    const inactive = 'text-secondary-700 dark:text-[var(--text-secondary)] hover:text-primary-600 dark:hover:text-[var(--link-color)]';
+    return `${base} ${isActive ? active : inactive}`;
+  };
+
+  const mobileLinkClasses = (path: string) => {
+    const isActive = location.pathname === path || location.pathname.startsWith(`${path}/`);
+    return `block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+      isActive
+        ? 'bg-primary-50 text-primary-600 dark:bg-[var(--bg-hover)] dark:text-[var(--link-color)]'
+        : 'text-secondary-700 dark:text-[var(--text-secondary)] hover:text-primary-600 dark:hover:text-[var(--link-color)]'
+    }`;
+  };
+
+  // Check if sidebar should be visible (same logic as Layout component)
+  const isFullPageRoom = location.pathname.startsWith('/app/room/');
+  const shouldShowSidebar = isAuthenticated && !isFullPageRoom;
+
   return (
-    <nav className="bg-white shadow-sm border-b border-secondary-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
+    <nav className={`fixed top-0 left-0 right-0 z-40 bg-white dark:bg-[var(--bg-card)] shadow-sm border-b border-secondary-200 dark:border-[var(--border-color)] ${shouldShowSidebar ? 'md:left-64' : ''}`}>
+      <div className="w-full">
+        <div className="flex justify-between items-center h-16 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center flex-shrink-0">
             {/* Title moved to sidebar */}
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center flex-shrink-0 gap-2 lg:gap-4">
             {isAuthenticated ? (
               <>
                 <Link
                   to="/app/feed"
-                  className="text-secondary-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  className={navLinkClasses('/app/feed')}
                 >
                   CollabFeed
                 </Link>
                 <Link
                   to="/app/leaderboard"
-                  className="text-secondary-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  className={navLinkClasses('/app/leaderboard')}
                 >
                   Leaderboard
                 </Link>
                 <Link
                   to="/app/wallet"
-                  className="text-secondary-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  className={navLinkClasses('/app/wallet')}
                 >
                   Wallet
                 </Link>
@@ -239,7 +311,7 @@ const Navbar: React.FC = () => {
                         openDropdown();
                       }
                     }}
-                    className="relative p-2 rounded-full hover:bg-secondary-50 text-secondary-700 hover:text-primary-600 transition-colors"
+                    className="relative p-2 rounded-full hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--icon-color)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors"
                     aria-label="Open messages"
                   >
                     <ChatBubbleLeftRightIcon className="h-6 w-6" />
@@ -257,8 +329,11 @@ const Navbar: React.FC = () => {
                 {/* Notifications Bell */}
                 <div className="relative">
                   <button
-                    onClick={toggleNotifications}
-                    className="relative p-2 rounded-full hover:bg-secondary-50 text-secondary-700 hover:text-primary-600 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleNotifications();
+                    }}
+                    className="relative p-2 rounded-full hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--icon-color)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors"
                     aria-label="Open notifications"
                   >
                     <BellIcon className="h-6 w-6" />
@@ -274,9 +349,12 @@ const Navbar: React.FC = () => {
                 </div>
 
                 {/* User Profile Dropdown */}
-                <div className="relative">
+                <div className="relative" ref={profileMenuRef}>
                   <button
-                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsProfileMenuOpen(!isProfileMenuOpen);
+                    }}
                     className="flex items-center space-x-2 text-secondary-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     <img
@@ -284,17 +362,20 @@ const Navbar: React.FC = () => {
                       alt={user?.name}
                       className="h-8 w-8 rounded-full"
                     />
-                    <span>{user?.name}</span>
                     <span className="text-xs bg-primary-100 text-primary-800 px-2 py-1 rounded-full">
                       {user?.collabPoints} CP
                     </span>
                   </button>
 
                   {isProfileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-secondary-200">
+                    <div className="fixed top-16 right-4 w-96 bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-xl border border-secondary-200 dark:border-[var(--border-color)] z-50 max-h-[600px] flex flex-col">
+                      <div className="p-3 border-b border-secondary-200 dark:border-[var(--border-color)] flex items-center justify-between flex-shrink-0">
+                        <span className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">Account</span>
+                      </div>
+                      <div className="flex-1 overflow-y-auto max-h-[550px] scrollbar-hide">
                       <Link
                         to={`/app/profile/${user?._id}`}
-                        className="flex items-center px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
+                        className="flex items-center px-4 py-2 text-sm text-secondary-700 dark:text-[var(--text-secondary)] hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)]"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <UserCircleIcon className="h-4 w-4 mr-2" />
@@ -302,7 +383,7 @@ const Navbar: React.FC = () => {
                       </Link>
                       <Link
                         to="/app/settings"
-                        className="flex items-center px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
+                        className="flex items-center px-4 py-2 text-sm text-secondary-700 dark:text-[var(--text-secondary)] hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)]"
                         onClick={() => setIsProfileMenuOpen(false)}
                       >
                         <Cog6ToothIcon className="h-4 w-4 mr-2" />
@@ -310,11 +391,12 @@ const Navbar: React.FC = () => {
                       </Link>
                       <button
                         onClick={handleLogout}
-                        className="flex items-center w-full px-4 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
+                        className="flex items-center w-full px-4 py-2 text-sm text-secondary-700 dark:text-[var(--text-secondary)] hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)]"
                       >
                         <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
                         Logout
                       </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -338,7 +420,7 @@ const Navbar: React.FC = () => {
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center flex-shrink-0">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-secondary-700 hover:text-primary-600 p-2"
@@ -360,28 +442,28 @@ const Navbar: React.FC = () => {
                 <>
                   <Link
                     to="/app/feed"
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses('/app/feed')}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     CollabFeed
                   </Link>
                   <Link
                     to="/app/leaderboard"
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses('/app/leaderboard')}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Leaderboard
                   </Link>
                   <Link
                     to="/app/wallet"
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses('/app/wallet')}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Wallet
                   </Link>
                   <Link
                     to={`/app/profile/${user?._id}`}
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses(`/app/profile/${user?._id}`)}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Profile
@@ -397,14 +479,14 @@ const Navbar: React.FC = () => {
                 <>
                   <Link
                     to="/login"
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses('/login')}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Login
                   </Link>
                   <Link
                     to="/register"
-                    className="block px-3 py-2 text-secondary-700 hover:text-primary-600 rounded-md text-base font-medium"
+                    className={mobileLinkClasses('/register')}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Sign Up

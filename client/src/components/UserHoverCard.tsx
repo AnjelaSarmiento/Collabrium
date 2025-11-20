@@ -213,7 +213,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
             }
           }}
           onMouseLeave={handleMouseLeave}
-          className={`fixed bg-white rounded-lg shadow-xl border border-gray-200 p-4 w-72 z-[100] ${
+          className={`fixed bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-xl border border-gray-200 dark:border-[var(--border-color)] p-4 w-72 z-[100] ${
             showCard ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           } transition-all duration-200 pointer-events-auto`}
           style={{
@@ -225,7 +225,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
         >
           {/* Arrow pointer */}
           <div
-            className={`absolute w-4 h-4 bg-white border-l border-t border-gray-200 transform rotate-45 ${
+            className={`absolute w-4 h-4 bg-white dark:bg-[var(--bg-card)] border-l border-t border-gray-200 dark:border-[var(--border-color)] transform rotate-45 ${
               position === 'bottom' ? '-top-2' : '-bottom-2'
             } left-1/2 -translate-x-1/2`}
           />
@@ -238,7 +238,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
           
           {hasError && (
             <div className="text-center py-4">
-              <p className="text-sm text-gray-500">Failed to load user data</p>
+              <p className="text-sm text-gray-500 dark:text-[var(--text-secondary)]">Failed to load user data</p>
             </div>
           )}
           
@@ -252,46 +252,46 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
                   className="h-16 w-16 rounded-full object-cover flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 truncate">{userData.name}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-[var(--text-primary)] truncate">{userData.name}</h3>
                   {/* Status directly under name (for other users only) */}
                   {!isOwnProfile && (
                     <div className="flex items-center mt-0.5">
                       <span className={`inline-block w-2 h-2 rounded-full ${getStatusColor()}`} />
-                      <span className="ml-1 text-xs text-gray-600">{getStatusText()}</span>
+                      <span className="ml-1 text-xs text-gray-600 dark:text-[var(--text-secondary)]">{getStatusText()}</span>
                     </div>
                   )}
                   <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-xs text-gray-600">Level {userData.level}</span>
-                    <span className="text-gray-400">•</span>
+                    <span className="text-xs text-gray-600 dark:text-[var(--text-secondary)]">Level {userData.level}</span>
+                    <span className="text-gray-400 dark:text-[var(--text-muted)]">•</span>
                     <div className="flex items-center">
-                      <span className="text-xs text-yellow-600 mr-1">⭐</span>
-                      <span className="text-xs text-gray-600">{userData.rating.toFixed(1)}</span>
+                      <span className="text-xs text-yellow-600 dark:text-yellow-400 mr-1">⭐</span>
+                      <span className="text-xs text-gray-600 dark:text-[var(--text-secondary)]">{userData.rating.toFixed(1)}</span>
                     </div>
                   </div>
                 </div>
               </div>
               
               {/* Stats */}
-              <div className="flex items-center space-x-4 py-3 border-t border-gray-200">
+              <div className="flex items-center space-x-4 py-3 border-t border-gray-200 dark:border-[var(--border-color)]">
                 <div className="flex-1 text-center">
-                  <div className="text-sm font-semibold text-gray-900">{userData.completedCollaborations}</div>
-                  <div className="text-xs text-gray-500">Collaborations</div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)]">{userData.completedCollaborations}</div>
+                  <div className="text-xs text-gray-500 dark:text-[var(--text-secondary)]">Collaborations</div>
                 </div>
-                <div className="w-px h-8 bg-gray-200" />
+                <div className="w-px h-8 bg-gray-200 dark:bg-[var(--border-color)]" />
                 <div className="flex-1 text-center">
-                  <div className="text-sm font-semibold text-gray-900">{userData.collabPoints || 0}</div>
-                  <div className="text-xs text-gray-500">Points</div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-[var(--text-primary)]">{userData.collabPoints || 0}</div>
+                  <div className="text-xs text-gray-500 dark:text-[var(--text-secondary)]">Points</div>
                 </div>
               </div>
               
               {/* Skills */}
               {userData.skills && userData.skills.length > 0 && (
-                <div className="py-3 border-t border-gray-200">
+                <div className="py-3 border-t border-gray-200 dark:border-[var(--border-color)]">
                   <div className="flex flex-wrap gap-1.5">
                     {userData.skills.slice(0, 3).map((skill, index) => (
                       <span
                         key={index}
-                        className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                        className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-700 dark:text-[var(--text-primary)] rounded"
                       >
                         {skill}
                       </span>
@@ -301,7 +301,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
               )}
               
               {/* View Profile / Actions */}
-              <div className="pt-3 border-t border-gray-200">
+              <div className="pt-3 border-t border-gray-200 dark:border-[var(--border-color)]">
                 <div className="flex gap-2">
                   <Link
                     to={`/app/profile/${userId}`}
@@ -313,7 +313,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
                   {!isOwnProfile && (
                     <button
                       onClick={handleConnect}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[var(--border-color)] text-secondary-700 dark:text-[var(--text-primary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]"
                     >
                       {rel === 'connected' ? 'Connected' : rel === 'outgoing' ? 'Request Sent' : rel === 'incoming' ? 'Accept' : 'Connect'}
                     </button>
@@ -331,7 +331,7 @@ const UserHoverCard: React.FC<UserHoverCardProps> = ({ userId, children }) => {
                           console.error('Failed to open DM', e);
                         }
                       }}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[var(--border-color)] text-secondary-700 dark:text-[var(--text-primary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]"
                     >
                       Message
                     </button>

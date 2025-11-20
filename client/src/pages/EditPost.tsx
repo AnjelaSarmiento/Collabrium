@@ -131,7 +131,7 @@ const EditPost: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold text-secondary-900 mb-4">Post not found</h2>
+          <h2 className="text-2xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Post not found</h2>
           <Link to="/app/feed" className="btn-primary">
             Back to Feed
           </Link>
@@ -149,13 +149,13 @@ const EditPost: React.FC = () => {
       <div className="mb-6">
         <Link
           to={`/app/feed/${post._id}`}
-          className="inline-flex items-center text-secondary-600 hover:text-secondary-900 mb-4"
+          className="inline-flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)] mb-4"
         >
           <ArrowLeftIcon className="h-4 w-4 mr-2" />
           Back to Post
         </Link>
-        <h1 className="text-3xl font-bold text-secondary-900">Edit Post</h1>
-        <p className="mt-2 text-secondary-600">
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)]">Edit Post</h1>
+        <p className="mt-2 text-secondary-600 dark:text-[var(--text-secondary)]">
           Update your post details. {hasActiveCollaborators ? 'Core fields are locked because collaborators have already joined, but you can manage collaboration settings below.' : 'You can adjust all details, including collaboration limits.'}
         </p>
       </div>
@@ -165,7 +165,7 @@ const EditPost: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="title" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Title *
             </label>
             <input
@@ -179,14 +179,14 @@ const EditPost: React.FC = () => {
               maxLength={100}
               disabled={hasActiveCollaborators}
             />
-            <p className="mt-1 text-xs text-secondary-500">
+            <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {formData.title.length}/100 characters
             </p>
           </div>
 
           {/* Description */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="description" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Description *
             </label>
             <textarea
@@ -200,14 +200,14 @@ const EditPost: React.FC = () => {
               maxLength={2000}
               disabled={hasActiveCollaborators}
             />
-            <p className="mt-1 text-xs text-secondary-500">
+            <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {formData.description.length}/2000 characters
             </p>
           </div>
 
           {/* Type */}
           <div>
-            <label htmlFor="type" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="type" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Type *
             </label>
             <select
@@ -225,7 +225,7 @@ const EditPost: React.FC = () => {
           {/* Reward (only for Paid Task) */}
           {formData.type === 'Paid Task' && (
             <div>
-              <label htmlFor="reward" className="block text-sm font-medium text-secondary-700 mb-2">
+              <label htmlFor="reward" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 <CurrencyDollarIcon className="h-4 w-4 inline mr-1" />
                 Reward (CollabPoints) *
               </label>
@@ -245,7 +245,7 @@ const EditPost: React.FC = () => {
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Tags
             </label>
             <div className="flex space-x-2 mb-3">
@@ -288,7 +288,7 @@ const EditPost: React.FC = () => {
 
           {/* Deadline */}
           <div>
-            <label htmlFor="deadline" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="deadline" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Deadline (Optional)
             </label>
             <input
@@ -308,10 +308,10 @@ const EditPost: React.FC = () => {
               id="isUrgent"
               checked={formData.isUrgent}
               onChange={(e) => setFormData(prev => ({ ...prev, isUrgent: e.target.checked }))}
-              className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              className="rounded border-secondary-300 dark:border-[var(--border-color)] text-primary-600 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] bg-white dark:bg-[var(--bg-card)]"
               disabled={hasActiveCollaborators}
             />
-            <label htmlFor="isUrgent" className="ml-2 text-sm text-secondary-700">
+            <label htmlFor="isUrgent" className="ml-2 text-sm text-secondary-700 dark:text-[var(--text-primary)]">
               Mark as urgent
             </label>
           </div>
@@ -319,7 +319,7 @@ const EditPost: React.FC = () => {
           {/* Collaboration Settings */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 Maximum Collaborators (0 = unlimited)
               </label>
               <input
@@ -337,31 +337,31 @@ const EditPost: React.FC = () => {
                   }
                 }}
               />
-              <p className="mt-1 text-xs text-secondary-500">
+              <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 Current approved collaborators: {collaboratorCount}.
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 Accept Collaboration Requests
               </label>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setCollabOpen(true)}
-                  className={`px-3 py-2 rounded border ${collabOpen ? 'bg-green-600 text-white border-green-600' : 'bg-white text-secondary-700 border-secondary-300'}`}
+                  className={`px-3 py-2 rounded border ${collabOpen ? 'bg-green-600 text-white border-green-600' : 'bg-white dark:bg-[var(--bg-card)] text-secondary-700 dark:text-[var(--text-primary)] border-secondary-300 dark:border-[var(--border-color)]'}`}
                 >
                   Open
                 </button>
                 <button
                   type="button"
                   onClick={() => setCollabOpen(false)}
-                  className={`px-3 py-2 rounded border ${!collabOpen ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-secondary-700 border-secondary-300'}`}
+                  className={`px-3 py-2 rounded border ${!collabOpen ? 'bg-gray-700 text-white border-gray-700' : 'bg-white dark:bg-[var(--bg-card)] text-secondary-700 dark:text-[var(--text-primary)] border-secondary-300 dark:border-[var(--border-color)]'}`}
                 >
                   Closed
                 </button>
               </div>
-              <p className="mt-1 text-xs text-secondary-500">
+              <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 Requests close automatically when the maximum is reached.
               </p>
             </div>

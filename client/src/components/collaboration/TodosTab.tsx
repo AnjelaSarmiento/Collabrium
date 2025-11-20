@@ -110,7 +110,7 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
   };
 
   if (loading) {
-    return <div className="p-4 text-center text-secondary-600">Loading todos...</div>;
+    return <div className="p-4 text-center text-secondary-600 dark:text-[var(--text-secondary)]">Loading todos...</div>;
   }
 
   const completedTodos = todos.filter(t => t.completed);
@@ -119,7 +119,7 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="font-medium text-secondary-900">
+        <h4 className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">
           To-dos ({pendingTodos.length} pending, {completedTodos.length} done)
         </h4>
         <button
@@ -132,7 +132,7 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreateTodo} className="mb-4 p-3 bg-secondary-50 rounded-lg">
+        <form onSubmit={handleCreateTodo} className="mb-4 p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
           <input
             type="text"
             placeholder="Todo title"
@@ -165,18 +165,18 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
 
       <div className="space-y-2">
         {pendingTodos.map(todo => (
-          <div key={todo._id} className="p-3 bg-secondary-50 rounded-lg flex items-start gap-2">
+          <div key={todo._id} className="p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg flex items-start gap-2">
             <button
               onClick={() => handleToggleTodo(todo._id, todo.completed)}
               className="mt-0.5 flex-shrink-0"
               title="Mark as complete"
             >
-              <div className="w-5 h-5 border-2 border-secondary-300 rounded hover:border-primary-600 transition-colors" />
+              <div className="w-5 h-5 border-2 border-secondary-300 dark:border-[var(--border-color)] rounded hover:border-primary-600 dark:hover:border-[var(--link-color)] transition-colors" />
             </button>
             <div className="flex-1">
-              <h5 className="font-medium text-secondary-900 text-sm">{todo.title}</h5>
+              <h5 className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm">{todo.title}</h5>
               {todo.description && (
-                <p className="text-xs text-secondary-600 mt-1">{todo.description}</p>
+                <p className="text-xs text-secondary-600 dark:text-[var(--text-secondary)] mt-1">{todo.description}</p>
               )}
             </div>
             <button
@@ -191,10 +191,10 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
         
         {completedTodos.length > 0 && (
           <>
-            <div className="mt-4 pt-4 border-t border-secondary-200">
-              <h5 className="text-xs font-medium text-secondary-500 mb-2">Completed</h5>
+            <div className="mt-4 pt-4 border-t border-secondary-200 dark:border-[var(--border-color)]">
+              <h5 className="text-xs font-medium text-secondary-500 dark:text-[var(--text-secondary)] mb-2">Completed</h5>
               {completedTodos.map(todo => (
-                <div key={todo._id} className="p-3 bg-secondary-50 rounded-lg flex items-start gap-2 opacity-60">
+                <div key={todo._id} className="p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg flex items-start gap-2 opacity-60">
                   <button
                     onClick={() => handleToggleTodo(todo._id, todo.completed)}
                     className="mt-0.5 flex-shrink-0"
@@ -203,9 +203,9 @@ const TodosTab: React.FC<TodosTabProps> = ({ roomId }) => {
                     <CheckIcon className="w-5 h-5 text-green-600" />
                   </button>
                   <div className="flex-1">
-                    <h5 className="font-medium text-secondary-900 text-sm line-through">{todo.title}</h5>
+                    <h5 className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm line-through">{todo.title}</h5>
                     {todo.description && (
-                      <p className="text-xs text-secondary-600 mt-1 line-through">{todo.description}</p>
+                      <p className="text-xs text-secondary-600 dark:text-[var(--text-secondary)] mt-1 line-through">{todo.description}</p>
                     )}
                   </div>
                   <button

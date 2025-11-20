@@ -363,9 +363,9 @@ const Profile: React.FC = () => {
       case 'Accepting Paid Tasks':
         return 'bg-blue-400';
       case 'Offline':
-        return 'bg-gray-400';
+        return 'bg-gray-400 dark:bg-[var(--bg-panel)]';
       default:
-        return 'bg-gray-400';
+        return 'bg-gray-400 dark:bg-[var(--bg-panel)]';
     }
   };
 
@@ -381,8 +381,8 @@ const Profile: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-bold text-secondary-900 mb-4">User not found</h1>
-          <p className="text-secondary-600 mb-6">The user you're looking for doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4">User not found</h1>
+          <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">The user you're looking for doesn't exist.</p>
           <Link to="/feed" className="btn-primary">
             Back to Feed
           </Link>
@@ -397,7 +397,7 @@ const Profile: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto">
       {/* Profile Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-8 mb-6">
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-8 mb-6">
         <div className="flex flex-col md:flex-row items-start space-y-4 md:space-y-0 md:space-x-6">
           <div className="flex-shrink-0">
             {isEditing ? (
@@ -447,10 +447,10 @@ const Profile: React.FC = () => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-secondary-900">{user.name}</h1>
+                <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)]">{user.name}</h1>
                 {!isOwnProfile && <UserStatusBadge userId={user._id} className="mt-2" />}
                 <div className="flex items-center mt-2 space-x-4">
-                  <div className="flex items-center text-sm text-secondary-600">
+                  <div className="flex items-center text-sm text-secondary-600 dark:text-[var(--text-secondary)]">
                     <StarIcon className="h-4 w-4 text-yellow-500 mr-1" />
                     {user.rating.toFixed(1)} ({user.reviews.length} reviews)
                   </div>
@@ -535,7 +535,7 @@ const Profile: React.FC = () => {
                   placeholder="Tell us about yourself..."
                 />
               ) : (
-                <p className="text-secondary-700">
+                <p className="text-secondary-700 dark:text-[var(--text-primary)]">
                   {user.bio || 'No bio available'}
                 </p>
               )}
@@ -543,7 +543,7 @@ const Profile: React.FC = () => {
 
             {/* Skills */}
             <div className="mt-4">
-              <h3 className="text-sm font-medium text-secondary-900 mb-2">Skills</h3>
+              <h3 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-2">Skills</h3>
               {isEditing ? (
                 <div>
                   <div className="flex space-x-2 mb-3">
@@ -580,7 +580,7 @@ const Profile: React.FC = () => {
                       </span>
                     ))}
                   </div>
-                  <p className="mt-1 text-sm text-secondary-500">
+                  <p className="mt-1 text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
                     Add skills one by one to showcase your expertise.
                   </p>
                 </div>
@@ -603,42 +603,42 @@ const Profile: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <CurrencyDollarIcon className="h-8 w-8 text-primary-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">CollabPoints</p>
-              <p className="text-2xl font-semibold text-secondary-900">{user.collabPoints}</p>
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">CollabPoints</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">{user.collabPoints}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <FireIcon className="h-8 w-8 text-orange-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Level</p>
-              <p className="text-2xl font-semibold text-secondary-900">{user.level}</p>
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Level</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">{user.level}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <UserGroupIcon className="h-8 w-8 text-green-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Collaborations</p>
-              <p className="text-2xl font-semibold text-secondary-900">{user.completedCollaborations}</p>
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Collaborations</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">{user.completedCollaborations}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <StarIcon className="h-8 w-8 text-yellow-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Rating</p>
-              <p className="text-2xl font-semibold text-secondary-900">{user.rating.toFixed(1)}</p>
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Rating</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">{user.rating.toFixed(1)}</p>
             </div>
           </div>
         </div>
@@ -648,20 +648,20 @@ const Profile: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         {/* Left: Badges */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
-            <h3 className="text-lg font-medium text-secondary-900 mb-4">Badges</h3>
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
+            <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Badges</h3>
             <div className="space-y-3">
               {user.badges.map((badge, index) => (
-                <div key={index} className="flex items-center p-3 bg-secondary-50 rounded-lg">
+                <div key={index} className="flex items-center p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
                   <span className="text-2xl mr-3">{badge.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-secondary-900">{badge.name}</p>
-                    <p className="text-xs text-secondary-600">{badge.description}</p>
+                    <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">{badge.name}</p>
+                    <p className="text-xs text-secondary-600 dark:text-[var(--text-secondary)]">{badge.description}</p>
                   </div>
                 </div>
               ))}
               {user.badges.length === 0 && (
-                <p className="text-secondary-500 text-sm">No badges earned yet</p>
+                <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-sm">No badges earned yet</p>
               )}
             </div>
           </div>
@@ -669,8 +669,8 @@ const Profile: React.FC = () => {
 
         {/* Right: Tabs */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border border-secondary-200">
-            <div className="flex items-center border-b border-secondary-200 px-4 pt-4">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)]">
+          <div className="flex items-center border-b border-secondary-200 dark:border-[var(--border-color)] px-4 pt-4">
               {[
                 { key: 'posts', label: 'Recent Posts' },
                 { key: 'connections', label: 'Connections' },
@@ -679,11 +679,15 @@ const Profile: React.FC = () => {
                 <button
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`relative mr-2 mb-0.5 px-3 py-2 text-sm ${activeTab === t.key ? 'text-secondary-900' : 'text-secondary-600 hover:text-secondary-900'}`}
+                  className={`relative mr-2 mb-0.5 px-3 py-2 text-sm ${
+                    activeTab === t.key
+                      ? 'text-secondary-900 dark:text-[var(--text-primary)]'
+                      : 'text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)]'
+                  }`}
                 >
                   {t.label}
                   {activeTab === t.key && (
-                    <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-primary-600" />
+                    <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-primary-600 dark:bg-[var(--link-color)]" />
                   )}
                 </button>
               ))}
@@ -692,10 +696,10 @@ const Profile: React.FC = () => {
               {activeTab === 'posts' && (
                 <div className="space-y-4">
                   {user.posts.filter(p => !p.isDeleted).slice(0, 5).map((post) => (
-                    <div key={post._id} className="border border-secondary-200 rounded-lg p-4">
+                    <div key={post._id} className="border border-secondary-200 dark:border-[var(--border-color)] rounded-lg p-4 bg-white dark:bg-[var(--bg-card)]">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h4 className="text-sm font-medium text-secondary-900">{post.title}</h4>
+                          <h4 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">{post.title}</h4>
                           <div className="flex items-center mt-1 space-x-2">
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               post.type === 'Paid Task' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
@@ -710,7 +714,7 @@ const Profile: React.FC = () => {
                               {post.status}
                             </span>
                             {post.reward && (
-                              <span className="text-xs text-green-600 font-medium">
+                              <span className="text-xs text-green-600 dark:text-green-300 font-medium">
                                 {post.reward} CP
                               </span>
                             )}
@@ -718,7 +722,7 @@ const Profile: React.FC = () => {
                         </div>
                         <Link
                           to={`/app/feed/${post._id}?from=profile&userId=${userId}`}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                          className="text-primary-600 dark:text-[var(--link-color)] hover:text-primary-700 dark:hover:text-[var(--link-color)]/80 text-sm font-medium"
                         >
                           View
                         </Link>
@@ -726,7 +730,7 @@ const Profile: React.FC = () => {
                     </div>
                   ))}
                   {user.posts.length === 0 && (
-                    <p className="text-secondary-500 text-sm">No posts yet</p>
+                    <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-sm">No posts yet</p>
                   )}
                 </div>
               )}
@@ -734,13 +738,13 @@ const Profile: React.FC = () => {
               {activeTab === 'connections' && (
                 <div>
                   {connections.length === 0 ? (
-                    <p className="text-secondary-500 text-sm">No connections yet.</p>
+                    <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-sm">No connections yet.</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {connections.map((c) => (
-                        <div key={c._id} className="flex items-center gap-3 p-3 border border-secondary-200 rounded-lg">
+                        <div key={c._id} className="flex items-center gap-3 p-3 border border-secondary-200 dark:border-[var(--border-color)] rounded-lg bg-white dark:bg-[var(--bg-card)]">
                           <img src={getProfileImageUrl(c.profilePicture) || '/default-avatar.png'} alt={c.name} className="h-8 w-8 rounded-full" />
-                          <a href={`/app/profile/${c._id}`} className="text-sm text-secondary-900 hover:underline break-words">{c.name}</a>
+                          <a href={`/app/profile/${c._id}`} className="text-sm text-secondary-900 dark:text-[var(--text-primary)] hover:underline break-words">{c.name}</a>
                         </div>
                       ))}
                     </div>
@@ -751,18 +755,18 @@ const Profile: React.FC = () => {
               {isOwnProfile && activeTab === 'incoming' && (
                 <div>
                   {incoming.length === 0 ? (
-                    <p className="text-secondary-500 text-sm">No pending requests.</p>
+                    <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-sm">No pending requests.</p>
                   ) : (
                     <div className="space-y-2">
                       {incoming.map((u) => (
-                        <div key={u._id} className="flex items-center justify-between p-2 border rounded-md">
+                        <div key={u._id} className="flex items-center justify-between p-2 border border-secondary-200 dark:border-[var(--border-color)] rounded-md bg-white dark:bg-[var(--bg-card)]">
                           <div className="flex items-center gap-2">
                             <img src={getProfileImageUrl(u.profilePicture) || '/default-avatar.png'} alt={u.name} className="h-6 w-6 rounded-full" />
-                            <a href={`/app/profile/${u._id}`} className="text-sm text-secondary-900 hover:underline break-words">{u.name}</a>
+                            <a href={`/app/profile/${u._id}`} className="text-sm text-secondary-900 dark:text-[var(--text-primary)] hover:underline break-words">{u.name}</a>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={async () => { await axios.post(`/users/accept/${u._id}`); await fetchRequests(); await fetchConnections(); }} className="px-2 py-1 text-xs rounded bg-primary-600 text-white">Accept</button>
-                            <button onClick={async () => { await axios.post(`/users/decline/${u._id}`); await fetchRequests(); }} className="px-2 py-1 text-xs rounded border">Decline</button>
+                            <button onClick={async () => { await axios.post(`/users/decline/${u._id}`); await fetchRequests(); }} className="px-2 py-1 text-xs rounded border border-secondary-200 dark:border-[var(--border-color)] text-secondary-700 dark:text-[var(--text-secondary)]">Decline</button>
                           </div>
                         </div>
                       ))}
@@ -774,17 +778,17 @@ const Profile: React.FC = () => {
               {isOwnProfile && activeTab === 'outgoing' && (
                 <div>
                   {outgoing.length === 0 ? (
-                    <p className="text-secondary-500 text-sm">No sent requests.</p>
+                    <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-sm">No sent requests.</p>
                   ) : (
                     <div className="space-y-2">
                       {outgoing.map((u) => (
-                        <div key={u._id} className="flex items-center justify-between p-2 border rounded-md">
+                        <div key={u._id} className="flex items-center justify-between p-2 border border-secondary-200 dark:border-[var(--border-color)] rounded-md bg-white dark:bg-[var(--bg-card)]">
                           <div className="flex items-center gap-2">
                             <img src={getProfileImageUrl(u.profilePicture) || '/default-avatar.png'} alt={u.name} className="h-6 w-6 rounded-full" />
-                            <a href={`/app/profile/${u._id}`} className="text-sm text-secondary-900 hover:underline break-words">{u.name}</a>
+                            <a href={`/app/profile/${u._id}`} className="text-sm text-secondary-900 dark:text-[var(--text-primary)] hover:underline break-words">{u.name}</a>
                           </div>
                           <div>
-                            <button onClick={async () => { await axios.post(`/users/connect/${u._id}`); await fetchRequests(); }} className="px-2 py-1 text-xs rounded border">Cancel</button>
+                            <button onClick={async () => { await axios.post(`/users/connect/${u._id}`); await fetchRequests(); }} className="px-2 py-1 text-xs rounded border border-secondary-200 dark:border-[var(--border-color)] text-secondary-700 dark:text-[var(--text-secondary)]">Cancel</button>
                           </div>
                         </div>
                       ))}
@@ -800,11 +804,11 @@ const Profile: React.FC = () => {
       {/* Reviews */}
       {user.reviews.length > 0 && (
         <div className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
-            <h3 className="text-lg font-medium text-secondary-900 mb-4">Reviews</h3>
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
+            <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Reviews</h3>
             <div className="space-y-4">
               {user.reviews.map((review, index) => (
-                <div key={index} className="border-b border-secondary-200 pb-4 last:border-b-0">
+                <div key={index} className="border-b border-secondary-200 dark:border-[var(--border-color)] pb-4 last:border-b-0">
                   <div className="flex items-start space-x-3">
                     <img
                       src={getProfileImageUrl(review.reviewer.profilePicture) || '/default-avatar.png'}
@@ -813,7 +817,7 @@ const Profile: React.FC = () => {
                     />
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
-                        <p className="text-sm font-medium text-secondary-900">{review.reviewer.name}</p>
+                        <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">{review.reviewer.name}</p>
                         <div className="flex items-center">
                           {[...Array(5)].map((_, i) => (
                             <StarIcon
@@ -824,12 +828,12 @@ const Profile: React.FC = () => {
                             />
                           ))}
                         </div>
-                        <span className="text-xs text-secondary-500">
+                        <span className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                           {new Date(review.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       {review.comment && (
-                        <p className="text-sm text-secondary-700 mt-1">{review.comment}</p>
+                        <p className="text-sm text-secondary-700 dark:text-[var(--text-primary)] mt-1">{review.comment}</p>
                       )}
                     </div>
                   </div>

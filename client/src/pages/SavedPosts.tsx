@@ -99,7 +99,7 @@ const SavedPosts: React.FC = () => {
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-secondary-600">Loading saved posts...</p>
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)]">Loading saved posts...</p>
           </div>
         </div>
       </div>
@@ -114,7 +114,7 @@ const SavedPosts: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/app/feed"
-            className="inline-flex items-center text-secondary-600 hover:text-secondary-900"
+            className="inline-flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)]"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back to CollabFeed
@@ -123,11 +123,11 @@ const SavedPosts: React.FC = () => {
 
         {/* Main Header */}
         <div>
-          <h1 className="text-3xl font-bold text-secondary-900 flex items-center">
+          <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)] flex items-center">
             <BookmarkIcon className="h-8 w-8 mr-3 text-blue-500" />
             Saved Posts
           </h1>
-          <p className="mt-2 text-secondary-600">
+          <p className="mt-2 text-secondary-600 dark:text-[var(--text-secondary)]">
             Posts you've saved for later. Click to view details or unsave.
           </p>
         </div>
@@ -150,11 +150,11 @@ const SavedPosts: React.FC = () => {
           return (
             <div
               key={post._id}
-              className="bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 hover:scale-[1.02] transition-all duration-200 overflow-hidden group cursor-pointer w-full max-w-sm mx-auto md:max-w-none md:mx-0 relative"
+              className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-gray-100 dark:border-[var(--border-color)] hover:shadow-lg hover:border-blue-200 dark:hover:border-[var(--link-color)] hover:scale-[1.02] transition-all duration-200 overflow-hidden group cursor-pointer w-full max-w-sm mx-auto md:max-w-none md:mx-0 relative"
             >
               <Link
                 to={`/app/feed/${post._id}`}
-                className="block hover:bg-blue-50/30 transition-colors duration-200"
+                className="block hover:bg-blue-50/30 dark:hover:bg-[var(--bg-hover)]/60 transition-colors duration-200"
               >
                 {/* Header */}
                 <div className="p-4 pb-3">
@@ -165,7 +165,7 @@ const SavedPosts: React.FC = () => {
                         alt={post.author?.name || 'Unknown User'}
                         className="h-8 w-8 rounded-full flex-shrink-0"
                       />
-                      <span className="text-sm font-medium text-gray-700 group-hover:text-blue-800 transition-colors truncate">
+                      <span className="text-sm font-medium text-gray-700 dark:text-[var(--text-primary)] group-hover:text-blue-800 dark:group-hover:text-[var(--link-color)] transition-colors truncate">
                         {post.author?.name || 'Unknown User'}
                       </span>
                     </div>
@@ -173,24 +173,24 @@ const SavedPosts: React.FC = () => {
                   {/* Badges */}
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                     {/* Post Type Badge */}
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-md ${
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-md border ${
                       post.type === 'Paid Task'
-                        ? 'bg-green-50 text-green-700 border border-green-200'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700'
+                        : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700'
                     }`}>
                       {post.type === 'Paid Task' ? 'Paid' : 'Free'}
                     </span>
                     
                     {/* Urgent Badge */}
                     {post.isUrgent && (
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 border border-amber-200">
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700">
                         ⚡ Urgent
                       </span>
                     )}
                     
                     {/* Reward Amount */}
                     {post.reward && (
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700">
                         🪙 {post.reward} CP
                       </span>
                     )}
@@ -200,17 +200,17 @@ const SavedPosts: React.FC = () => {
 
               {/* Content */}
               <div className="px-4 pb-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-800 transition-colors">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-[var(--text-primary)] mb-2 line-clamp-2 group-hover:text-blue-800 dark:group-hover:text-[var(--link-color)] transition-colors">
                   {post.title}
                 </h3>
                 
                 {/* Description with subtle fade */}
                 <div className="relative">
-                  <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
+                  <p className="text-gray-600 dark:text-[var(--text-secondary)] text-sm leading-relaxed line-clamp-2">
                     {post.description}
                   </p>
-                  <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white via-white to-transparent pl-6">
-                    <span className="text-blue-800 text-sm font-medium">
+                  <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white via-white to-transparent dark:from-[var(--bg-card)] dark:via-[var(--bg-card)] dark:to-transparent pl-6">
+                    <span className="text-blue-800 dark:text-[var(--link-color)] text-sm font-medium">
                       ...
                     </span>
                   </div>
@@ -221,13 +221,13 @@ const SavedPosts: React.FC = () => {
                   {post.tags.slice(0, 2).map((tag) => (
                     <span
                       key={tag}
-                      className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-sm"
+                      className="px-2 py-0.5 bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-600 dark:text-[var(--text-secondary)] text-xs rounded-sm"
                     >
                       #{tag}
                     </span>
                   ))}
                   {post.tags.length > 2 && (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-sm">
+                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-500 dark:text-[var(--text-muted)] text-xs rounded-sm">
                       +{post.tags.length - 2}
                     </span>
                   )}
@@ -242,7 +242,7 @@ const SavedPosts: React.FC = () => {
                 e.stopPropagation();
                 handleUnsave(post._id);
               }}
-              className="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all duration-200"
+              className="absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 text-blue-600 dark:text-[var(--link-color)] bg-blue-50 dark:bg-[var(--bg-hover)] hover:bg-blue-100 dark:hover:bg-[var(--bg-panel)] transition-all duration-200"
               title="Remove from saved"
             >
               <svg 
@@ -261,13 +261,13 @@ const SavedPosts: React.FC = () => {
 
       {posts.length === 0 && !loading && (
         <div className="text-center py-12">
-          <div className="text-secondary-400 mb-4">
+          <div className="text-secondary-400 dark:text-[var(--text-muted)] mb-4">
             <BookmarkIcon className="h-16 w-16 mx-auto" />
           </div>
-          <h3 className="text-lg font-medium text-secondary-900 mb-2">
+          <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-2">
             No saved posts yet
           </h3>
-          <p className="text-secondary-500 mb-6">
+          <p className="text-secondary-500 dark:text-[var(--text-secondary)] mb-6">
             Save posts you're interested in to view them here later.
           </p>
           <Link to="/app/feed" className="btn-primary">

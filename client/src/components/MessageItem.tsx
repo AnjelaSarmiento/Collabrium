@@ -82,7 +82,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
     <React.Fragment key={message._id + '-' + message.createdAt}>
       {showDateDivider && (
         <div className="my-4 flex items-center justify-center">
-          <span className="px-3 py-1 text-xs text-gray-500 bg-gray-100 rounded-full">
+          <span className="px-3 py-1 text-xs text-gray-500 dark:text-[var(--text-muted)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-full">
             {formatDayLabel(currentDate)}
           </span>
         </div>
@@ -104,7 +104,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
           )}
           <div className="relative" style={{ minHeight: '36px' }}>
             <div
-              className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 text-secondary-900'}`}
+              className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-secondary-900 dark:text-[var(--text-primary)]'}`}
               style={{
                 minWidth: '64px',
                 minHeight: '36px',
@@ -115,7 +115,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
               <p className="text-sm whitespace-pre-wrap break-words break-all">
                 {message.content}
               </p>
-              <div className={`mt-1 text-[11px] ${isOwn ? 'text-primary-100' : 'text-gray-500'} text-right`}>
+              <div className={`mt-1 text-[11px] ${isOwn ? 'text-primary-100' : 'text-gray-500 dark:text-[var(--text-muted)]'} text-right`}>
                 {formatClock(currentDate)}
               </div>
             </div>
@@ -128,7 +128,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
           <div className="flex flex-col items-end">
             {(shouldShowStatusTextOnMostRecent || shouldShowStatusTextOnOthers || (isMostRecentAndLastRead && isReadVisible) || (shouldShowReadIndicatorOnLastRead && isReadVisible)) && (
               <span
-                className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 font-bold' : 'text-gray-400'}`}
+                className={`block text-xs mt-0.5 ${isSending ? 'animate-pulse text-primary-500 dark:text-[var(--link-color)] font-bold' : 'text-gray-400 dark:text-[var(--text-muted)]'}`}
                 style={{
                   minWidth: '80px',
                   maxWidth: '80px',
@@ -149,7 +149,7 @@ const MessageItem: React.FC<MessageItemProps> = memo(({
               <img
                 src={getProfileImageUrl(otherUser.profilePicture) || '/default-avatar.png'}
                 alt={otherUser.name}
-                className="w-4 h-4 rounded-full border border-gray-300 shadow-sm mt-0.5"
+                className="w-4 h-4 rounded-full border border-gray-300 dark:border-[var(--border-color)] shadow-sm mt-0.5"
                 title={`${otherUser.name} has read this message`}
                 style={{ flexShrink: 0 }}
               />

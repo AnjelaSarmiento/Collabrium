@@ -6,6 +6,101 @@
   html {
     font-family: 'Inter', system-ui, sans-serif;
   }
+
+  /* Light Mode (Default) */
+  :root {
+    /* Backgrounds */
+    --bg-page: #ffffff;
+    --bg-card: #f0f2f5;
+    --bg-panel: #f8fafc;
+    --bg-hover: #f1f5f9;
+    
+    /* Text */
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    
+    /* Borders */
+    --border-color: #e2e8f0;
+    --border-hover: #cbd5e1;
+    
+    /* Links & Accents */
+    --link-color: #2563eb;
+    --link-hover: #1d4ed8;
+    
+    /* Icons */
+    --icon-color: #475569;
+    --icon-hover: #334155;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  }
+
+  /* Dark Mode */
+  .dark {
+    /* Backgrounds */
+    --bg-page: #18191a;
+    --bg-card: #242526;
+    --bg-panel: #1c1d1e;
+    --bg-hover: #2d2e30;
+    
+    /* Text */
+    --text-primary: #e4e6eb;
+    --text-secondary: #b0b3b8;
+    --text-muted: #8a8d91;
+    
+    /* Borders */
+    --border-color: #3a3b3c;
+    --border-hover: #4e4f50;
+    
+    /* Links & Accents */
+    --link-color: #3b82f6;
+    --link-hover: #60a5fa;
+    
+    /* Icons */
+    --icon-color: #b0b3b8;
+    --icon-hover: #e4e6eb;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  }
+
+  /* Apply theme colors */
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Global scrollbar styling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.6);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.35);
+    border: 2px solid rgba(24, 25, 26, 0.8);
+  }
 }
 
 @layer components {
@@ -14,7 +109,7 @@
   }
   
   .btn-secondary {
-    @apply bg-secondary-200 hover:bg-secondary-300 text-secondary-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-secondary-200 dark:bg-[var(--bg-hover)] hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] text-secondary-800 dark:text-[var(--text-primary)] font-medium py-2 px-4 rounded-lg transition-colors duration-200;
   }
   
   .btn-danger {
@@ -22,11 +117,11 @@
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-secondary-200 p-6;
+    @apply bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6;
   }
   
   .input-field {
-    @apply block w-full rounded-lg border-secondary-300 shadow-sm focus:border-primary-500 focus:ring-primary-500;
+    @apply block w-full rounded-lg border-secondary-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] shadow-sm focus:border-primary-500 dark:focus:border-[var(--link-color)] focus:ring-primary-500 dark:focus:ring-[var(--link-color)];
   }
   
   .posts-grid {
@@ -82,16 +177,30 @@
     display: none; /* Chrome, Safari, Opera */
   }
 
-  /* Lightweight notification highlight - subtle and performant */
+  /* Lightweight notification highlight - matches navigation active highlight (#EFF6FF) */
   .highlight-notification {
-    background-color: #E8F2FF !important;
+    background-color: #EFF6FF !important;
     transition: background-color 2s ease-out !important;
     animation: highlightFade 2s ease-out;
+  }
+
+  .dark .highlight-notification {
+    background-color: var(--bg-hover) !important;
+    animation: highlightFadeDark 2s ease-out;
   }
 
   @keyframes highlightFade {
     0% {
       background-color: #DBEAFE;
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  @keyframes highlightFadeDark {
+    0% {
+      background-color: var(--bg-hover);
     }
     100% {
       background-color: transparent;

@@ -119,13 +119,13 @@ const FilesTab: React.FC<FilesTabProps> = ({ roomId }) => {
   };
 
   if (loading) {
-    return <div className="p-4 text-center text-secondary-600">Loading files...</div>;
+    return <div className="p-4 text-center text-secondary-600 dark:text-[var(--text-secondary)]">Loading files...</div>;
   }
 
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="font-medium text-secondary-900">Files ({files.length})</h4>
+        <h4 className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">Files ({files.length})</h4>
         <button
           onClick={() => fileInputRef.current?.click()}
           className="btn-secondary p-2"
@@ -144,15 +144,15 @@ const FilesTab: React.FC<FilesTabProps> = ({ roomId }) => {
 
       <div className="space-y-2">
         {files.map(file => (
-          <div key={file._id} className="p-3 bg-secondary-50 rounded-lg flex items-center gap-3">
+          <div key={file._id} className="p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg flex items-center gap-3">
             {file.isFolder ? (
               <FolderIcon className="h-5 w-5 text-yellow-600 flex-shrink-0" />
             ) : (
               <PaperClipIcon className="h-5 w-5 text-secondary-500 flex-shrink-0" />
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-secondary-900 truncate">{file.name}</p>
-              <div className="flex items-center gap-2 text-xs text-secondary-500">
+              <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate">{file.name}</p>
+              <div className="flex items-center gap-2 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 <img
                   src={getProfileImageUrl(file.uploadedBy.profilePicture) || '/default-avatar.png'}
                   alt={file.uploadedBy.name}
@@ -182,7 +182,7 @@ const FilesTab: React.FC<FilesTabProps> = ({ roomId }) => {
           </div>
         ))}
         {files.length === 0 && (
-          <p className="text-center text-secondary-500 text-sm py-8">No files yet</p>
+          <p className="text-center text-secondary-500 dark:text-[var(--text-secondary)] text-sm py-8">No files yet</p>
         )}
       </div>
     </div>

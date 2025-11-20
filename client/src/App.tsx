@@ -6,6 +6,7 @@ import { PresenceProvider } from './contexts/PresenceContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { NotificationDispatcherProvider } from './contexts/NotificationDispatcherContext';
 import { MessagesWidgetProvider } from './contexts/MessagesWidgetContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import ToastContainer from './components/ToastContainer';
 import NotificationBridge from './components/NotificationBridge';
@@ -44,10 +45,11 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <SocketProvider>
-        <PresenceProvider>
-          <NotificationDispatcherProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SocketProvider>
+          <PresenceProvider>
+            <NotificationDispatcherProvider>
             <MessagesWidgetProvider>
               <NotificationProvider>
                 <NotificationBridge />
@@ -106,6 +108,7 @@ function App() {
         </PresenceProvider>
       </SocketProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }
 

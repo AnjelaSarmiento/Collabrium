@@ -49,13 +49,13 @@ const CollabSidebar: React.FC<CollabSidebarProps> = ({
 
   if (isCollapsed) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-secondary-200 w-16 flex flex-col items-center py-2 h-full">
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] w-16 flex flex-col items-center py-2 h-full">
         <button
           onClick={onToggleCollapse}
-          className="p-2 hover:bg-secondary-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-secondary-100 dark:hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
           title="Expand sidebar"
         >
-          <ChevronLeftIcon className="h-5 w-5 text-secondary-600" />
+          <ChevronLeftIcon className="h-5 w-5 text-secondary-600 dark:text-[var(--icon-color)]" />
         </button>
         <div className="flex-1 flex flex-col items-center gap-2 mt-4">
           {tabs.map(tab => {
@@ -69,8 +69,8 @@ const CollabSidebar: React.FC<CollabSidebarProps> = ({
                 }}
                 className={`p-2 rounded-lg transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-primary-100 text-primary-600'
-                    : 'text-secondary-600 hover:bg-secondary-100'
+                    ? 'bg-primary-100 text-primary-600 dark:bg-[var(--bg-hover)] dark:text-[var(--link-color)]'
+                    : 'text-secondary-600 dark:text-[var(--text-secondary)] hover:bg-secondary-100 dark:hover:bg-[var(--bg-hover)]'
                 }`}
                 title={tab.label}
               >
@@ -84,23 +84,23 @@ const CollabSidebar: React.FC<CollabSidebarProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-secondary-200 w-80 flex flex-col h-full">
+    <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] w-80 flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-secondary-200 flex items-center justify-between">
-        <h3 className="text-lg font-medium text-secondary-900">
+      <div className="p-4 border-b border-secondary-200 dark:border-[var(--border-color)] flex items-center justify-between">
+        <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)]">
           {tabs.find(t => t.id === activeTab)?.label}
         </h3>
         <button
           onClick={onToggleCollapse}
-          className="p-1 hover:bg-secondary-100 rounded transition-colors"
+          className="p-1 hover:bg-secondary-100 dark:hover:bg-[var(--bg-hover)] rounded transition-colors"
           title="Collapse sidebar"
         >
-          <ChevronRightIcon className="h-5 w-5 text-secondary-600" />
+          <ChevronRightIcon className="h-5 w-5 text-secondary-600 dark:text-[var(--icon-color)]" />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-secondary-200 overflow-x-auto">
+      <div className="flex border-b border-secondary-200 dark:border-[var(--border-color)] overflow-x-auto">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
@@ -109,8 +109,8 @@ const CollabSidebar: React.FC<CollabSidebarProps> = ({
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                  : 'text-secondary-600 hover:bg-secondary-50'
+                  ? 'text-primary-600 dark:text-[var(--link-color)] border-b-2 border-primary-600 dark:border-[var(--link-color)] bg-primary-50 dark:bg-[var(--bg-hover)]'
+                  : 'text-secondary-600 dark:text-[var(--text-secondary)] hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)]'
               }`}
             >
               <Icon className="h-4 w-4" />

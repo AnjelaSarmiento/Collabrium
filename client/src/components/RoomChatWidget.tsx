@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { usePresence } from '../contexts/PresenceContext';
 import { getProfileImageUrl } from '../utils/image';
 import { useMessagesWidget } from '../contexts/MessagesWidgetContext';
 import {
@@ -18,6 +19,7 @@ import TypingActivityBar from './TypingActivityBar';
 import { MessageStatusRenderer } from '../utils/messageStatusRenderer';
 import { useAutosizeTextarea } from '../hooks/useAutosizeTextarea';
 import { isMobileDevice } from '../utils/deviceDetection';
+import { useChatSounds } from '../hooks/useChatSounds';
 
 interface RoomChatWidgetProps {
   conversationId: string;
@@ -36,6 +38,10 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
   const navigate = useNavigate();
   const { closeWidget, openWidgets } = useMessagesWidget();
   const { joinConversation, leaveConversation, onMessageNew, onMessageSent, onMessageDelivered, onMessageSeen, ackMessageReceived, onTyping, sendTyping, joinRoom, leaveRoom } = useSocket();
+  const { getUserStatus } = usePresence();
+  const { playMessageSent, playMessageReceived, playTyping, playMessageRead } = useChatSounds({
+    volume: 0.6,
+  });
   
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -43,6 +49,17 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
   const [messageStatuses, setMessageStatuses] = useState<Record<string, string>>({});
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const textareaRef = useAutosizeTextarea(newMessage, { minRows: 1, maxRows: 6, maxHeight: 160 });
+  
+  // Refs for sound tracking
+  const sentSoundPlayedRef = useRef<Set<string>>(new Set());
+  const readSoundPlayedRef = useRef<Set<string>>(new Set());
+  const lastKnownReadStateRef = useRef<Map<string, Set<string>>>(new Map());
+  const typingSoundPlayedRef = useRef<boolean>(false);
+  const previousTypingStateRef = useRef<boolean>(false);
+  
+  // Refs for widget focus tracking
+  const widgetRef = useRef<HTMLDivElement>(null);
+  const markReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const computeStatusForMessage = (message: any): string => {
     const senderId = message?.sender?._id?.toString();
     const currentUserId = user?._id?.toString();
@@ -64,7 +81,7 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
 
   // Calculate position based on widget index (if multiple widgets are open)
   const widgetIndex = openWidgets.findIndex(w => w.conversationId === conversationId);
-  const rightOffset = widgetIndex * (420 + 16); // 420px width + 16px gap
+  const rightOffset = widgetIndex * (320 + 16); // 320px width (w-80) + 16px gap - matching ChatWidget
 
   const latestOwnMessageId = useMemo(() => {
     const currentUserId = user?._id ? user._id.toString() : '';
@@ -147,6 +164,10 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
     const handleMessageNew = (data: { conversationId: string; message: any }) => {
       console.log('[RoomChatWidget] Received message:new event:', data);
       if (data.conversationId === conversationId) {
+        const isFromOtherUser = data.message.sender._id !== user?._id;
+        const isViewingConversation = document.visibilityState === 'visible' && 
+                                       window.__activeConversationId === conversationId;
+        
         setMessages(prev => {
           const next = [...prev];
           const index = next.findIndex(m => m._id === data.message._id);
@@ -166,6 +187,37 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
           upsertParticipantInfo(data.message.sender._id.toString(), data.message.sender.name, data.message.sender.profilePicture);
         }
         ackMessageReceived(conversationId, data.message._id);
+        
+        // Play message received sound if:
+        // 1. Message is from another user (not self)
+        // 2. User is viewing the conversation
+        // 3. Tab is visible
+        if (isFromOtherUser && isViewingConversation) {
+          playMessageReceived().catch((err) => {
+            const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+            console.warn('[RoomChatWidget] playMessageReceived failed:', error);
+          });
+        }
+        
+        // Only mark as read if input field is actually focused (explicit user interaction)
+        // Do NOT mark as read just because widget is visible or mouse is hovering
+        if (textareaRef.current && document.activeElement === textareaRef.current) {
+          if (markReadTimeoutRef.current) {
+            clearTimeout(markReadTimeoutRef.current);
+          }
+          markReadTimeoutRef.current = setTimeout(async () => {
+            if (conversationId && textareaRef.current && document.activeElement === textareaRef.current) {
+              try {
+                await axios.post(`/messages/conversations/${conversationId}/read`);
+                window.dispatchEvent(new CustomEvent('conversation:read'));
+              } catch (error) {
+                console.error('[RoomChatWidget] Failed to mark as read:', error);
+              }
+            }
+            markReadTimeoutRef.current = null;
+          }, 200); // 200ms debounce
+        }
+        
         // Don't auto-select message - status text should only show on click
         setTimeout(() => scrollToBottom(), 50);
       }
@@ -173,6 +225,27 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
 
     const handleMessageSent = (data: { conversationId: string; messageId: string }) => {
       if (data.conversationId === conversationId) {
+        const prevStatus = messageStatuses[data.messageId] || 'In progress...';
+        const soundNotPlayed = !sentSoundPlayedRef.current.has(data.messageId);
+        
+        // Play sound ONLY on transition to "Sent" (not if already "Sent" or higher)
+        const isTransitionToSent = prevStatus !== 'Sent' && 
+                                    prevStatus !== 'Delivered' && 
+                                    prevStatus !== 'Read';
+        
+        if (isTransitionToSent && soundNotPlayed) {
+          sentSoundPlayedRef.current.add(data.messageId);
+          
+          // Play message sent sound if user is viewing the conversation and tab is visible
+          if (document.visibilityState === 'visible' && 
+              window.__activeConversationId === conversationId) {
+            playMessageSent().catch((err) => {
+              const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+              console.warn('[RoomChatWidget] playMessageSent failed:', error);
+            });
+          }
+        }
+        
         setMessageStatuses(prev => ({ ...prev, [data.messageId]: 'Sent' }));
       }
     };
@@ -195,8 +268,23 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
             name: info?.name || data.userName || 'Participant',
             profilePicture: info?.profilePicture,
           };
+          const wasTyping = previousTypingStateRef.current;
+          const isViewingConversation = document.visibilityState === 'visible' && 
+                                         window.__activeConversationId === conversationId;
+          
           setTypingUsers(prev => {
             const existingIndex = prev.findIndex(u => u.userId === incomingUserId);
+            const hasTypingUsers = existingIndex !== -1 ? prev.length > 0 : prev.length + 1 > 0;
+            
+            // Play typing sound when someone starts typing (once per typing session)
+            if (!wasTyping && hasTypingUsers && isViewingConversation && !typingSoundPlayedRef.current) {
+              typingSoundPlayedRef.current = true;
+              playTyping().catch((err) => {
+                const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+                console.warn('[RoomChatWidget] playTyping failed:', error);
+              });
+            }
+            
             if (existingIndex !== -1) {
               const next = [...prev];
               next[existingIndex] = typingUser;
@@ -204,18 +292,49 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
             }
             return [...prev, typingUser];
           });
+          
           const existingTimeout = typingTimeoutsRef.current.get(incomingUserId);
           if (existingTimeout) clearTimeout(existingTimeout);
           const timeoutId = setTimeout(() => {
-            setTypingUsers(current => current.filter(u => u.userId !== incomingUserId));
+            setTypingUsers(current => {
+              const filtered = current.filter(u => u.userId !== incomingUserId);
+              const hasRemainingUsers = filtered.length > 0;
+              
+              // Reset typing sound flag when all typing stops
+              if (!hasRemainingUsers && previousTypingStateRef.current) {
+                typingSoundPlayedRef.current = false;
+              }
+              previousTypingStateRef.current = hasRemainingUsers;
+              
+              return filtered;
+            });
             typingTimeoutsRef.current.delete(incomingUserId);
           }, 1200);
           typingTimeoutsRef.current.set(incomingUserId, timeoutId);
+          previousTypingStateRef.current = true;
         } else {
-          setTypingUsers(prev => prev.filter(u => u.userId !== incomingUserId));
+          // Instead of immediately removing, set a delay before removing the typing indicator
           const existingTimeout = typingTimeoutsRef.current.get(incomingUserId);
           if (existingTimeout) clearTimeout(existingTimeout);
-          typingTimeoutsRef.current.delete(incomingUserId);
+          
+          // Set timeout to remove typing indicator after a delay
+          const timeoutId = setTimeout(() => {
+            setTypingUsers(prev => {
+              const filtered = prev.filter(u => u.userId !== incomingUserId);
+              const hasRemainingUsers = filtered.length > 0;
+              
+              // Reset typing sound flag when all typing stops
+              if (!hasRemainingUsers && previousTypingStateRef.current) {
+                typingSoundPlayedRef.current = false;
+              }
+              previousTypingStateRef.current = hasRemainingUsers;
+              
+              return filtered;
+            });
+            typingTimeoutsRef.current.delete(incomingUserId);
+          }, 1500); // 1.5 second delay before hiding typing indicator
+          
+          typingTimeoutsRef.current.set(incomingUserId, timeoutId);
         }
       }
     };
@@ -232,8 +351,13 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
         upsertParticipantInfo(readerId);
       }
 
+      const isViewingConversation = document.visibilityState === 'visible' && 
+                                     window.__activeConversationId === conversationId;
+
       setMessages(prev => {
         let hasUpdates = false;
+        const newlyReadMessages: string[] = [];
+        
         const nextMessages = prev.map(msg => {
           const senderId = msg?.sender?._id?.toString();
           if (senderId === currentUserId) {
@@ -242,11 +366,38 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
             if (!seenSet.has(readerId)) {
               hasUpdates = true;
               seenSet.add(readerId);
+              
+              // Check if this is a new read event (sound hasn't been played yet)
+              const previousReadBy = lastKnownReadStateRef.current.get(msg._id) || new Set<string>();
+              const wasPreviouslyRead = previousReadBy.has(readerId);
+              const isNewReadEvent = !wasPreviouslyRead;
+              const soundAlreadyPlayed = readSoundPlayedRef.current.has(msg._id);
+              
+              if (isNewReadEvent && !soundAlreadyPlayed) {
+                newlyReadMessages.push(msg._id);
+              }
+              
+              // Update read state tracking
+              const updatedReadBy = new Set(previousReadBy);
+              updatedReadBy.add(readerId);
+              lastKnownReadStateRef.current.set(msg._id, updatedReadBy);
+              
               return { ...msg, seenBy: Array.from(seenSet) };
             }
           }
           return msg;
         });
+
+        // Play message read sound for newly read messages
+        if (newlyReadMessages.length > 0 && isViewingConversation) {
+          newlyReadMessages.forEach(msgId => {
+            readSoundPlayedRef.current.add(msgId);
+            playMessageRead().catch((err) => {
+              const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+              console.warn('[RoomChatWidget] playMessageRead failed:', error);
+            });
+          });
+        }
 
         if (hasUpdates) {
           setMessageStatuses(prevStatuses => {
@@ -288,12 +439,52 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
       if (window.__activeConversationId === conversationId) {
         window.__activeConversationId = undefined;
       }
+      // Clean up sound tracking refs
+      sentSoundPlayedRef.current.clear();
+      readSoundPlayedRef.current.clear();
+      lastKnownReadStateRef.current.clear();
+      typingSoundPlayedRef.current = false;
+      previousTypingStateRef.current = false;
+      // Clean up focus tracking refs
+      if (markReadTimeoutRef.current) {
+        clearTimeout(markReadTimeoutRef.current);
+        markReadTimeoutRef.current = null;
+      }
     };
   }, [conversationId, roomId, joinConversation, leaveConversation, joinRoom, leaveRoom, onMessageNew, onMessageSent, onMessageDelivered, onMessageSeen, onTyping, ackMessageReceived, user?._id]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-focus textarea when widget opens (conversationId changes)
+  useEffect(() => {
+    if (conversationId && textareaRef.current) {
+      // Small delay to ensure widget is rendered
+      const timeoutId = setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          // Mark as read when input is auto-focused (valid trigger per requirements)
+          // Debounce to avoid race conditions
+          if (markReadTimeoutRef.current) {
+            clearTimeout(markReadTimeoutRef.current);
+          }
+          markReadTimeoutRef.current = setTimeout(async () => {
+            if (conversationId && textareaRef.current && document.activeElement === textareaRef.current) {
+              try {
+                await axios.post(`/messages/conversations/${conversationId}/read`);
+                window.dispatchEvent(new CustomEvent('conversation:read'));
+              } catch (error) {
+                console.error('[RoomChatWidget] Failed to mark as read on auto-focus:', error);
+              }
+            }
+            markReadTimeoutRef.current = null;
+          }, 200); // 200ms debounce
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [conversationId]);
 
   const fetchMessages = async () => {
     try {
@@ -445,69 +636,143 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
     return readers;
   };
 
+  // Get online participants (aggregate status)
+  const onlineParticipants = useMemo(() => {
+    if (!participants.length) return [];
+    const currentUserId = user?._id ? user._id.toString() : '';
+    return participants
+      .filter((p: any) => {
+        const participantId = p?.user?._id ? p.user._id.toString() : null;
+        if (!participantId || participantId === currentUserId) return false;
+        const status = getUserStatus(participantId);
+        return status.status === 'online';
+      })
+      .map((p: any) => ({
+        _id: p.user._id,
+        name: p.user.name,
+        profilePicture: p.user.profilePicture,
+      }))
+      .slice(0, 3); // Show up to 3 online users
+  }, [participants, user?._id, getUserStatus]);
+
+  const onlineCount = useMemo(() => {
+    if (!participants.length) return 0;
+    const currentUserId = user?._id ? user._id.toString() : '';
+    return participants.filter((p: any) => {
+      const participantId = p?.user?._id ? p.user._id.toString() : null;
+      if (!participantId || participantId === currentUserId) return false;
+      const status = getUserStatus(participantId);
+      return status.status === 'online';
+    }).length;
+  }, [participants, user?._id, getUserStatus]);
+
+  const extraOnlineCount = Math.max(0, onlineCount - 3);
+
   // Don't auto-select latest message - status text should only show on click
 
   return (
     <div 
-      className="fixed bottom-4 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-[60] max-h-[700px] w-[420px]"
+      ref={widgetRef}
+      className="fixed bottom-4 bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-2xl border border-gray-200 dark:border-[var(--border-color)] flex flex-col z-[60] max-h-[500px] w-80"
       style={{ right: `${16 + rightOffset}px` }}
+      onClick={async () => {
+        // Auto-focus textarea when widget is clicked (Facebook Messenger behavior)
+        if (textareaRef.current) {
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.focus();
+              // Focus event will trigger read marking via onFocus handler
+            }
+          }, 0);
+        }
+      }}
+      onPointerDown={async () => {
+        // Mark as read when user clicks/taps inside widget (valid trigger per requirements)
+        if (conversationId && document.visibilityState === 'visible') {
+          if (markReadTimeoutRef.current) {
+            clearTimeout(markReadTimeoutRef.current);
+          }
+          markReadTimeoutRef.current = setTimeout(async () => {
+            try {
+              await axios.post(`/messages/conversations/${conversationId}/read`);
+              window.dispatchEvent(new CustomEvent('conversation:read'));
+            } catch (error) {
+              console.error('[RoomChatWidget] Failed to mark as read:', error);
+            }
+            markReadTimeoutRef.current = null;
+          }, 200); // 200ms debounce
+        }
+      }}
     >
-      {/* Header */}
-      <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-primary-50">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <UserGroupIcon className="h-5 w-5 text-blue-600" />
+      {/* Header - Matching ChatWidget layout */}
+      <div className="p-3 border-b border-gray-200 dark:border-[var(--border-color)] flex items-center justify-between bg-primary-50 dark:bg-[var(--bg-hover)]">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <div className="relative flex-shrink-0">
+            <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-[var(--bg-panel)] flex items-center justify-center">
+              <UserGroupIcon className="h-5 w-5 text-blue-600 dark:text-[var(--link-color)]" />
+            </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-medium text-secondary-900 truncate">{roomName}</h4>
-            {participants.length > 0 ? (
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                {participants.slice(0, 3).map((participant) => {
-                  const participantId = participant?.user?._id;
-                  if (!participantId) return null;
-                  return (
-                    <UserStatusBadge
-                      key={participantId}
-                      userId={participantId}
-                      showText
-                      className="text-gray-500"
-                    />
-                  );
-                })}
-                {participants.length > 3 && (
-                  <span className="text-xs text-gray-500">+{participants.length - 3} more</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-xs text-gray-500">Participants status unavailable</span>
-            )}
+            <h4 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate leading-tight">{roomName}</h4>
+            <div className="mt-0.5">
+              {onlineCount > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  {/* Show up to 3 online user avatars */}
+                  <div className="flex -space-x-1.5">
+                    {onlineParticipants.map((participant) => (
+                      <div key={participant._id} className="relative">
+                        <img
+                          src={getProfileImageUrl(participant.profilePicture) || '/default-avatar.png'}
+                          alt={participant.name}
+                          className="h-4 w-4 rounded-full border border-white object-cover"
+                        />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white dark:border-[var(--bg-card)]"></div>
+                      </div>
+                    ))}
+                  </div>
+                  {extraOnlineCount > 0 && (
+                    <span className="text-xs text-gray-500 dark:text-[var(--text-muted)]">
+                      and {extraOnlineCount} more online
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-gray-500 dark:text-[var(--text-muted)]">No one online</span>
+              )}
+            </div>
             {typingUsers.length > 0 && (
-              <p className="text-xs font-medium text-[#3D61D4]">Typing…</p>
+              <p className="text-xs font-medium text-[#3D61D4] animate-pulse mt-0.5">
+                {typingUsers.length === 1 
+                  ? 'Someone is typing…'
+                  : typingUsers.length <= 4
+                  ? `${typingUsers.length} people are typing…`
+                  : '4+ people are typing…'}
+              </p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => navigate(`/app/room/${roomId}`)}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-panel)] rounded transition-colors"
             title="View Full"
           >
-            <ArrowsPointingOutIcon className="h-4 w-4 text-gray-600" />
+            <ArrowsPointingOutIcon className="h-4 w-4 text-gray-600 dark:text-[var(--icon-color)]" />
           </button>
           <button
             onClick={() => closeWidget(conversationId)}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-[var(--bg-panel)] rounded transition-colors"
             title="Close"
           >
-            <XMarkIcon className="h-4 w-4 text-gray-600" />
+            <XMarkIcon className="h-4 w-4 text-gray-600 dark:text-[var(--icon-color)]" />
           </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0" style={{ maxHeight: '500px' }}>
+      {/* Messages - Matching ChatWidget max height */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0 bg-white dark:bg-[var(--bg-card)]" style={{ maxHeight: '330px' }}>
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm py-8">No messages yet</div>
+          <div className="text-center text-gray-500 dark:text-[var(--text-muted)] text-sm py-8">No messages yet</div>
         ) : (
           messages.map((message) => {
           const isOwnMessage = message.sender._id === user?._id;
@@ -544,18 +809,18 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
                 />
               )}
               <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} max-w-[75%]`}>
-                <div className="text-xs text-gray-500 mb-0.5 px-1">
+                <div className="text-xs text-gray-500 dark:text-[var(--text-muted)] mb-0.5 px-1">
                   {!isOwnMessage && message.sender.name}
                 </div>
                 <div
                   className={`px-3 py-1.5 rounded-lg text-sm ${
                     isOwnMessage
                       ? 'bg-[#3D61D4] text-white rounded-br-sm'
-                      : 'bg-gray-100 text-secondary-900 rounded-bl-sm'
+                      : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-secondary-900 dark:text-[var(--text-primary)] rounded-bl-sm'
                   }`}
                 >
                   <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                  <div className={`flex items-center gap-1 mt-0.5 ${isOwnMessage ? 'text-primary-100' : 'text-gray-500'}`}>
+                  <div className={`flex items-center gap-1 mt-0.5 ${isOwnMessage ? 'text-primary-100' : 'text-gray-500 dark:text-[var(--text-muted)]'}`}>
                     <span className="text-[10px]">{formatTime(message.createdAt)}</span>
                   </div>
                 </div>
@@ -569,13 +834,6 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
                   readIndicatorUsers={readUsers}
                 />
               </div>
-              {isOwnMessage && (
-                <img
-                  src={getProfileImageUrl(user?.profilePicture) || '/default-avatar.png'}
-                  alt={user?.name}
-                  className="h-5 w-5 rounded-full object-cover flex-shrink-0"
-                />
-              )}
             </div>
           );
           })
@@ -585,7 +843,7 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 bg-gray-50">
+      <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-[var(--border-color)] bg-gray-50 dark:bg-[var(--bg-panel)]">
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
@@ -607,6 +865,24 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
                 typingTimeoutsRef.current.set('__self__', timeoutId);
               } else {
                 sendTyping(conversationId, false, user?.name);
+              }
+              
+              // Mark as read when user types into input (valid trigger per requirements)
+              if (conversationId && document.visibilityState === 'visible') {
+                if (markReadTimeoutRef.current) {
+                  clearTimeout(markReadTimeoutRef.current);
+                }
+                markReadTimeoutRef.current = setTimeout(async () => {
+                  if (textareaRef.current && document.activeElement === textareaRef.current) {
+                    try {
+                      await axios.post(`/messages/conversations/${conversationId}/read`);
+                      window.dispatchEvent(new CustomEvent('conversation:read'));
+                    } catch (error) {
+                      console.error('[RoomChatWidget] Failed to mark as read:', error);
+                    }
+                  }
+                  markReadTimeoutRef.current = null;
+                }, 200); // 200ms debounce
               }
             }}
             onKeyDown={(e) => {
@@ -643,7 +919,26 @@ const RoomChatWidget: React.FC<RoomChatWidgetProps> = ({ conversationId, roomId,
             placeholder={isMobileDevice() ? "Type a message... (Enter for newline)" : "Type a message... (Enter to send, Shift+Enter for newline)"}
             disabled={sending}
             rows={1}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 resize-none overflow-y-auto"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] disabled:opacity-50 resize-none overflow-y-auto"
+            onFocus={async () => {
+              // Mark as read when input field becomes focused (valid trigger per requirements)
+              if (conversationId && document.visibilityState === 'visible') {
+                if (markReadTimeoutRef.current) {
+                  clearTimeout(markReadTimeoutRef.current);
+                }
+                markReadTimeoutRef.current = setTimeout(async () => {
+                  if (textareaRef.current && document.activeElement === textareaRef.current) {
+                    try {
+                      await axios.post(`/messages/conversations/${conversationId}/read`);
+                      window.dispatchEvent(new CustomEvent('conversation:read'));
+                    } catch (error) {
+                      console.error('[RoomChatWidget] Failed to mark as read:', error);
+                    }
+                  }
+                  markReadTimeoutRef.current = null;
+                }, 200); // 200ms debounce
+              }
+            }}
           />
           <button
             type="submit"

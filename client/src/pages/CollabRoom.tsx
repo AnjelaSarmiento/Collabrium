@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { usePresence } from '../contexts/PresenceContext';
 import { getProfileImageUrl } from '../utils/image';
 import axios from 'axios';
 import VideoCall from '../components/VideoCall';
@@ -12,6 +13,7 @@ import TypingActivityBar from '../components/TypingActivityBar';
 import { MessageStatusRenderer } from '../utils/messageStatusRenderer';
 import { useAutosizeTextarea } from '../hooks/useAutosizeTextarea';
 import { isMobileDevice } from '../utils/deviceDetection';
+import { useChatSounds } from '../hooks/useChatSounds';
 import {
   PaperAirplaneIcon,
   PaperClipIcon,
@@ -134,7 +136,11 @@ type TypingParticipant = {
 const CollabRoom: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { user } = useAuth();
-  const { socket, joinConversation, leaveConversation, onMessageNew, onMessageSent, onMessageDelivered, ackMessageReceived, onTyping, sendTyping, joinRoom, leaveRoom } = useSocket();
+  const { socket, joinConversation, leaveConversation, onMessageNew, onMessageSent, onMessageDelivered, onMessageSeen, ackMessageReceived, onTyping, sendTyping, joinRoom, leaveRoom } = useSocket();
+  const { getUserStatus } = usePresence();
+  const { playMessageSent, playMessageReceived, playTyping, playMessageRead } = useChatSounds({
+    volume: 0.6,
+  });
   const navigate = useNavigate();
   
   const [room, setRoom] = useState<Room | null>(null);
@@ -149,6 +155,11 @@ const CollabRoom: React.FC = () => {
   const textareaRef = useAutosizeTextarea(newMessage, { minRows: 1, maxRows: 6, maxHeight: 160 });
   const [typingUsers, setTypingUsers] = useState<TypingParticipant[]>([]);
   const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const typingSoundPlayedRef = useRef<boolean>(false);
+  const previousTypingStateRef = useRef<boolean>(false);
+  const sentSoundPlayedRef = useRef<Set<string>>(new Set());
+  const readSoundPlayedRef = useRef<Set<string>>(new Set());
+  const lastKnownReadStateRef = useRef<Map<string, Set<string>>>(new Map());
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Collapsed by default
   const [inboxCollapsed, setInboxCollapsed] = useState(false); // Expanded by default
@@ -162,39 +173,129 @@ const CollabRoom: React.FC = () => {
   const [conversationsLoading, setConversationsLoading] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const participantsRef = useRef<Room['participants']>([] as Room['participants']);
+  const markReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const readMessageIdsRef = useRef<Set<string>>(new Set()); // Track messages already marked as read by this client
+  const lastReadEmitRef = useRef<Map<string, number>>(new Map()); // Track last read emit time per conversation (prevent duplicate emits)
+  const isComponentMountedRef = useRef<boolean>(true);
 
   useEffect(() => {
     participantsRef.current = room?.participants ?? [];
   }, [room?.participants]);
 
+  useEffect(() => {
+    isComponentMountedRef.current = true;
+    return () => {
+      isComponentMountedRef.current = false;
+    };
+  }, []);
+
   // Fetch conversations list
-  const fetchConversations = async () => {
+  // silent: if true, don't show loading state (for background refreshes)
+  const fetchConversations = async (silent: boolean = false) => {
     try {
-      const response = await axios.get('/conversations');
+      if (!silent) {
+        setConversationsLoading(true);
+      }
+      const response = await axios.get('/messages/conversations');
       if (response.data.success) {
-        setConversations(response.data.conversations || []);
+        const fetchedConversations = response.data.conversations || [];
+        console.log('[CollabRoom] Fetched conversations:', fetchedConversations.length, silent ? '(silent)' : '');
+        
+        // Merge with existing conversations to preserve optimistic updates
+        // Only update conversations that haven't been optimistically updated recently
+        setConversations(prev => {
+          // Create a map of existing conversations for quick lookup
+          const existingMap = new Map(prev.map(c => [c._id, c]));
+          
+          // Merge fetched conversations with existing ones
+          const merged = fetchedConversations.map((fetched: Conversation) => {
+            const existing = existingMap.get(fetched._id);
+            
+            // If we have an existing conversation, check if optimistic update is newer
+            if (existing) {
+              const existingTime = new Date(existing.lastMessageAt || 0).getTime();
+              const fetchedTime = new Date(fetched.lastMessageAt || 0).getTime();
+              
+              // If existing has more recent message (optimistic update), keep it
+              if (existingTime > fetchedTime) {
+                return existing;
+              }
+              
+              // If timestamps are equal, check if existing has a newer message ID
+              // (optimistic updates happen immediately, so they might have same timestamp)
+              if (existingTime === fetchedTime && existing.lastMessage?._id && fetched.lastMessage?._id) {
+                if (existing.lastMessage._id === fetched.lastMessage._id) {
+                  // Same message - merge: use fetched but preserve optimistic unreadCount
+                  const isCurrentlyViewing = (selectedConversation?._id || conversationId) === fetched._id;
+                  return {
+                    ...fetched,
+                    unreadCount: isCurrentlyViewing ? 0 : (existing.unreadCount !== undefined ? existing.unreadCount : fetched.unreadCount),
+                  };
+                }
+                // Different messages - use fetched (server is source of truth)
+              }
+              
+              // Use fetched data but preserve optimistic unreadCount if viewing
+              const isCurrentlyViewing = (selectedConversation?._id || conversationId) === fetched._id;
+              return {
+                ...fetched,
+                // Preserve optimistic unreadCount: 0 if currently viewing, otherwise use existing if it's higher
+                unreadCount: isCurrentlyViewing ? 0 : (existing.unreadCount > fetched.unreadCount ? existing.unreadCount : fetched.unreadCount),
+              };
+            }
+            
+            return fetched;
+          });
+          
+          // Sort by lastMessageAt
+          merged.sort((a: Conversation, b: Conversation) => {
+            const timeA = new Date(a.lastMessageAt || 0).getTime();
+            const timeB = new Date(b.lastMessageAt || 0).getTime();
+            return timeB - timeA;
+          });
+          
+          // Calculate total unread count and dispatch event to update Navbar badge
+          const totalUnread = merged.reduce((sum: number, conv: Conversation) => sum + (conv.unreadCount || 0), 0);
+          window.dispatchEvent(new CustomEvent('messages:count-update', { 
+            detail: { totalUnread } 
+          }));
+          
+          return merged;
+        });
+        
         // Auto-select room conversation if we're in a room and haven't selected one yet
         if (roomId && conversationId && !selectedConversation) {
-          const roomConv = response.data.conversations.find((c: Conversation) => 
+          const roomConv = fetchedConversations.find((c: Conversation) => 
             c.isRoom && c.roomId === roomId
           );
           if (roomConv) {
             setSelectedConversation(roomConv);
           }
         }
+      } else {
+        console.warn('[CollabRoom] API returned success: false');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[CollabRoom] Failed to fetch conversations:', error);
+      if (error.response) {
+        console.error('[CollabRoom] Response status:', error.response.status);
+        console.error('[CollabRoom] Response data:', error.response.data);
+      }
     } finally {
+      if (!silent) {
       setConversationsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    if (user) {
     fetchConversations();
+    }
   }, [user]);
 
   // Auto-select room conversation when roomId and conversationId are available
@@ -214,14 +315,37 @@ const CollabRoom: React.FC = () => {
     if (!socket) return;
     
     const handleConversationUpdate = () => {
-      fetchConversations();
+      console.log('[CollabRoom] Conversation update event received - silently refreshing conversations');
+      // Silent refresh - don't show loading state
+      fetchConversations(true);
     };
     
+    // Only listen to conversation:update events, not conversation:read
+    // conversation:read fires too frequently during scrolling and doesn't require
+    // a full conversation list refresh - only unread counts would change
     socket.on('conversation:update', handleConversationUpdate);
+    
     return () => {
       socket.off('conversation:update', handleConversationUpdate);
     };
   }, [socket]);
+  
+  // Periodically refresh conversations list (e.g., every 30 seconds) to update unread counts
+  // This is less aggressive than refreshing on every scroll/read event
+  // Use a ref to store the latest fetchConversations function to avoid recreating interval
+  const fetchConversationsRef = useRef(fetchConversations);
+  useEffect(() => {
+    fetchConversationsRef.current = fetchConversations;
+  }, [fetchConversations]);
+  
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Silent refresh - don't show loading state for background updates
+      fetchConversationsRef.current(true);
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (roomId) {
@@ -254,6 +378,24 @@ const CollabRoom: React.FC = () => {
 
   // Handle conversation selection
   const handleSelectConversation = (conv: Conversation) => {
+    // Optimistically reset unread count to 0 when selecting conversation
+    setConversations(prev => {
+      const updated = prev.map(c => {
+        if (c._id === conv._id) {
+          return { ...c, unreadCount: 0 };
+        }
+        return c;
+      });
+      
+      // Calculate total unread count and dispatch event to update Navbar badge
+      const totalUnread = updated.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+      window.dispatchEvent(new CustomEvent('messages:count-update', { 
+        detail: { totalUnread } 
+      }));
+      
+      return updated;
+    });
+    
     // If it's a room conversation and we're already in that room, just switch chat
     if (conv.isRoom && conv.roomId === roomId) {
       setSelectedConversation(conv);
@@ -299,6 +441,242 @@ const CollabRoom: React.FC = () => {
     }
   };
 
+  // Check if user is scrolled to bottom (within 100px threshold)
+  const isScrolledToBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return false;
+    const container = messagesContainerRef.current;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    const threshold = 100; // 100px threshold
+    return scrollHeight - scrollTop - clientHeight <= threshold;
+  }, []);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Check if should mark messages as read for full view
+  const shouldMarkReadForFullView = useCallback((convId: string): boolean => {
+    if (!convId || !isComponentMountedRef.current) {
+      console.log('[CollabRoom] shouldMarkReadForFullView: false - no convId or component unmounted');
+      return false;
+    }
+
+    // 1. Check tab visibility
+    const isTabVisible = document.visibilityState === 'visible';
+    if (!isTabVisible) {
+      console.log('[CollabRoom] shouldMarkReadForFullView: false - tab not visible');
+      return false;
+    }
+
+    // 2. Check window focus
+    const isWindowFocused = document.hasFocus ? document.hasFocus() : true;
+    if (!isWindowFocused) {
+      console.log('[CollabRoom] shouldMarkReadForFullView: false - window not focused');
+      return false;
+    }
+
+    // 3. Check if conversation is active
+    const activeConvId = selectedConversation?._id || conversationId;
+    if (activeConvId !== convId) {
+      console.log('[CollabRoom] shouldMarkReadForFullView: false - conversation not active', { activeConvId, convId });
+      return false;
+    }
+
+    // 4. Check if scrolled to bottom
+    const isAtBottom = isScrolledToBottom();
+    if (!isAtBottom) {
+      console.log('[CollabRoom] shouldMarkReadForFullView: false - not scrolled to bottom');
+      return false;
+    }
+
+    console.log('[CollabRoom] shouldMarkReadForFullView: true - all conditions met');
+    return true;
+  }, [isScrolledToBottom, selectedConversation, conversationId]);
+
+  // Direct mark as read (bypasses scroll check) - used for new messages when user is actively viewing
+  const markAsReadDirectly = useCallback(async (convId: string, messageId?: string) => {
+    if (!convId) {
+      console.log('[CollabRoom] markAsReadDirectly: skipped - no convId');
+      return;
+    }
+
+    // Basic checks: tab visible, window focused, conversation active
+    const isTabVisible = document.visibilityState === 'visible';
+    const isWindowFocused = document.hasFocus ? document.hasFocus() : true;
+    const activeConvId = selectedConversation?._id || conversationId;
+    const isConversationActive = activeConvId === convId;
+
+    if (!isTabVisible || !isWindowFocused || !isConversationActive) {
+      console.log('[CollabRoom] markAsReadDirectly: skipped - basic conditions not met', {
+        isTabVisible,
+        isWindowFocused,
+        isConversationActive
+      });
+      return;
+    }
+
+    // Prevent duplicate emissions - debounce per conversation (max once per 500ms)
+    const now = Date.now();
+    const lastEmitTime = lastReadEmitRef.current.get(convId) || 0;
+    const timeSinceLastEmit = now - lastEmitTime;
+    const DEBOUNCE_MS = 500; // 500ms debounce to prevent duplicate emits
+
+    if (timeSinceLastEmit < DEBOUNCE_MS) {
+      console.log('[CollabRoom] ⏭️ Skipping read emit - too soon since last emit:', {
+        conversationId: convId,
+        timeSinceLastEmit,
+        debounceMs: DEBOUNCE_MS
+      });
+      return;
+    }
+
+    // Update last emit time immediately to prevent race conditions
+    lastReadEmitRef.current.set(convId, now);
+
+    // Emit read immediately
+    try {
+      const timestamp = new Date().toISOString();
+      console.log('[CollabRoom] 📤 [DIRECT READ] Sending read event to server (bypassing scroll check):', {
+        conversationId: convId,
+        messageId,
+        userId: user?._id,
+        timestamp
+      });
+      
+      const response = await axios.post(`/messages/conversations/${convId}/read`);
+      
+      if (response.data.success) {
+        console.log('[CollabRoom] ✅ [DIRECT READ SUCCESS] Read event successfully sent to server:', {
+          conversationId: convId,
+          messageId,
+          userId: user?._id,
+          timestamp
+        });
+        
+        // Update conversation list optimistically - reset unread count to 0
+        setConversations(prev => prev.map(c => {
+          if (c._id === convId) {
+            return { ...c, unreadCount: 0 };
+          }
+          return c;
+        }));
+        
+        // Dispatch event to update other components (like navbar)
+        window.dispatchEvent(new CustomEvent('conversation:read'));
+        // Note: Server will broadcast message:seen event to all clients
+      } else {
+        console.warn('[CollabRoom] ⚠️ [DIRECT READ WARNING] Server returned success:false:', response.data);
+        // Reset last emit time on failure so we can retry
+        lastReadEmitRef.current.delete(convId);
+      }
+    } catch (error: any) {
+      console.error('[CollabRoom] ❌ [DIRECT READ ERROR] Failed to mark messages as read:', {
+        conversationId: convId,
+        messageId,
+        userId: user?._id,
+        error: error?.response?.data || error?.message || error,
+        status: error?.response?.status,
+        timestamp: new Date().toISOString()
+      });
+      // Reset last emit time on error so we can retry
+      lastReadEmitRef.current.delete(convId);
+    }
+  }, [selectedConversation, conversationId, user?._id]);
+
+  // Mark as read when scrolled to bottom and tab is visible (full view auto-mark)
+  // This is used for scroll events and older messages - requires scroll-to-bottom check
+  const markAsReadIfScrolledToBottom = useCallback(async (convId: string) => {
+    if (!convId) {
+      console.log('[CollabRoom] markAsReadIfScrolledToBottom: skipped - no convId');
+      return;
+    }
+
+    // Check if should mark as read (includes scroll-to-bottom check)
+    if (!shouldMarkReadForFullView(convId)) {
+      console.log('[CollabRoom] markAsReadIfScrolledToBottom: skipped - conditions not met');
+      return;
+    }
+
+    // Prevent duplicate emissions - debounce per conversation (max once per 500ms)
+    const now = Date.now();
+    const lastEmitTime = lastReadEmitRef.current.get(convId) || 0;
+    const timeSinceLastEmit = now - lastEmitTime;
+    const DEBOUNCE_MS = 500; // 500ms debounce to prevent duplicate emits
+
+    if (timeSinceLastEmit < DEBOUNCE_MS) {
+      console.log('[CollabRoom] ⏭️ Skipping read emit - too soon since last emit:', {
+        conversationId: convId,
+        timeSinceLastEmit,
+        debounceMs: DEBOUNCE_MS
+      });
+      return;
+    }
+
+    // Clear any pending timeout
+    if (markReadTimeoutRef.current) {
+      clearTimeout(markReadTimeoutRef.current);
+      markReadTimeoutRef.current = null;
+    }
+
+    // Update last emit time immediately to prevent race conditions
+    lastReadEmitRef.current.set(convId, now);
+
+    // Emit read immediately when conditions are met
+    try {
+      const timestamp = new Date().toISOString();
+      console.log('[CollabRoom] 📤 [CLIENT EMIT] Sending read event to server:', {
+        conversationId: convId,
+        userId: user?._id,
+        timestamp,
+        conditions: {
+          tabVisible: document.visibilityState === 'visible',
+          windowFocused: document.hasFocus ? document.hasFocus() : true,
+          scrolledToBottom: isScrolledToBottom(),
+          componentMounted: isComponentMountedRef.current
+        }
+      });
+      
+      const response = await axios.post(`/messages/conversations/${convId}/read`);
+      
+      if (response.data.success) {
+        console.log('[CollabRoom] ✅ [CLIENT EMIT SUCCESS] Read event successfully sent to server:', {
+          conversationId: convId,
+          userId: user?._id,
+          timestamp,
+          serverResponse: response.data
+        });
+        
+        // Update conversation list optimistically - reset unread count to 0
+        setConversations(prev => prev.map(c => {
+          if (c._id === convId) {
+            return { ...c, unreadCount: 0 };
+          }
+          return c;
+        }));
+        
+        // Dispatch event to update other components (like navbar)
+        window.dispatchEvent(new CustomEvent('conversation:read'));
+        // Note: Server will broadcast message:seen event to all clients
+      } else {
+        console.warn('[CollabRoom] ⚠️ [CLIENT EMIT WARNING] Server returned success:false:', response.data);
+        // Reset last emit time on failure so we can retry
+        lastReadEmitRef.current.delete(convId);
+      }
+    } catch (error: any) {
+      console.error('[CollabRoom] ❌ [CLIENT EMIT ERROR] Failed to mark messages as read:', {
+        conversationId: convId,
+        userId: user?._id,
+        error: error?.response?.data || error?.message || error,
+        status: error?.response?.status,
+        timestamp: new Date().toISOString()
+      });
+      // Reset last emit time on error so we can retry
+      lastReadEmitRef.current.delete(convId);
+    }
+  }, [shouldMarkReadForFullView, isScrolledToBottom, user?._id]);
+
   useEffect(() => {
     const activeConvId = selectedConversation?._id || conversationId;
     if (activeConvId) {
@@ -321,18 +699,175 @@ const CollabRoom: React.FC = () => {
         joinConversation(conversationId);
       }
       
-      // Listen for new messages
+      // Listen for new messages from ALL conversations (not just active)
+      // This ensures the conversation list updates in real-time
       const handleMessageNew = (data: { conversationId: string; message: any }) => {
-        if (data.conversationId === activeConvId) {
-          setMessages(prev => [...prev, data.message]);
+        const messageConvId = data.conversationId;
+        const isCurrentConversation = messageConvId === activeConvId;
+          const isFromOtherUser = data.message.sender._id !== user?._id;
+        const messageId = data.message._id;
+        
+        // Update conversation list optimistically for ALL conversations
+        setConversations(prev => {
+          const conversationIndex = prev.findIndex(c => c._id === messageConvId);
+          
+          if (conversationIndex === -1) {
+            // Conversation not in list yet - might be a new conversation
+            // Silently fetch conversations to get the new one, but don't show loading
+            fetchConversations(true).catch(console.error);
+            return prev;
+          }
+          
+          // Update the conversation with new message info
+          const updated = [...prev];
+          const conversation = updated[conversationIndex];
+          
+          // Update lastMessage, lastMessageAt, and unreadCount
+          const newUnreadCount = isCurrentConversation 
+            ? 0 // If viewing this conversation, unreadCount stays at 0
+            : (isFromOtherUser 
+              ? (conversation.unreadCount || 0) + 1 // Increment if from other user and not viewing
+              : conversation.unreadCount || 0); // Don't increment for own messages
+          
+          updated[conversationIndex] = {
+            ...conversation,
+            lastMessage: {
+              _id: data.message._id,
+              content: data.message.content,
+              createdAt: data.message.createdAt,
+            },
+            lastMessageAt: data.message.createdAt,
+            unreadCount: newUnreadCount,
+          };
+          
+          // Sort conversations by lastMessageAt (most recent first)
+          updated.sort((a, b) => {
+            const timeA = new Date(a.lastMessageAt || 0).getTime();
+            const timeB = new Date(b.lastMessageAt || 0).getTime();
+            return timeB - timeA;
+          });
+          
+          // Calculate total unread count and dispatch event to update Navbar badge
+          const totalUnread = updated.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+          window.dispatchEvent(new CustomEvent('messages:count-update', { 
+            detail: { totalUnread } 
+          }));
+          
+          return updated;
+        });
+        
+        // Handle message display for current conversation
+        if (isCurrentConversation) {
+          const isViewingConversation = document.visibilityState === 'visible' && 
+                                         window.__activeConversationId === activeConvId;
+          
+          console.log('[CollabRoom] 📨 Message received:', { messageId, conversationId: activeConvId, isFromOtherUser });
+          
+          // Check if user is actively viewing BEFORE adding message to DOM
+          const isTabVisible = document.visibilityState === 'visible';
+          const isWindowFocused = document.hasFocus ? document.hasFocus() : true;
+          const isConversationActive = window.__activeConversationId === activeConvId;
+          
+          setMessages(prev => {
+            // Avoid duplicates
+            if (prev.some(m => m._id === messageId)) return prev;
+            return [...prev, data.message];
+          });
           ackMessageReceived(activeConvId, data.message._id);
           scrollToBottom();
+          
+          // Play message received sound if:
+          // 1. Message is from another user (not self)
+          // 2. User is viewing the conversation
+          // 3. Tab is visible
+          if (isFromOtherUser && isViewingConversation) {
+            playMessageReceived().catch((err) => {
+              const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+              console.warn('[CollabRoom] playMessageReceived failed:', error);
+            });
+          }
+          
+          // Full message view: Auto-mark NEW messages as read immediately if user is actively viewing
+          // For new messages: NO scroll-to-bottom check required (they auto-scroll and user will see them)
+          // This matches Messenger behavior - instant read receipts for new messages when actively viewing
+          if (!readMessageIdsRef.current.has(messageId)) {
+            console.log('[CollabRoom] 📖 Evaluating read conditions for new message:', { 
+                messageId, 
+                conversationId: activeConvId,
+              isTabVisible,
+              isWindowFocused,
+              isConversationActive
+            });
+            
+            // For NEW messages: If user is actively viewing (tab visible, window focused, conversation active),
+            // mark as read immediately - no scroll-to-bottom check needed
+            // New messages auto-scroll to bottom, so if user is viewing, they'll see it
+            if (isTabVisible && isWindowFocused && isConversationActive) {
+              // Mark as read after a short delay to ensure message is added to DOM
+              // Use a delay to ensure scrollToBottom() has started and message is visible
+              setTimeout(() => {
+                // Double-check conditions and that we haven't already marked
+                if (!readMessageIdsRef.current.has(messageId) && 
+                    document.visibilityState === 'visible' && 
+                    document.hasFocus && document.hasFocus() &&
+                    window.__activeConversationId === activeConvId) {
+                  
+                  console.log('[CollabRoom] ✅ [NEW MESSAGE] User actively viewing - marking as read immediately:', { 
+                    messageId, 
+                    conversationId: activeConvId,
+                    timestamp: new Date().toISOString(),
+                    reason: 'User is actively viewing conversation - new message will be visible'
+                  });
+                  
+                  // Mark as read directly - bypass scroll-to-bottom check for new messages
+                  // User is actively viewing, so they'll see the new message immediately
+                  markAsReadDirectly(activeConvId, messageId);
+                    readMessageIdsRef.current.add(messageId);
+                    console.log('[CollabRoom] 📝 Added messageId to read tracking:', messageId);
+                  } else {
+                  console.log('[CollabRoom] ⏭️ Conditions changed or already marked:', {
+                    messageId,
+                    isViewing: document.visibilityState === 'visible' && window.__activeConversationId === activeConvId,
+                    isFocused: document.hasFocus ? document.hasFocus() : true,
+                    alreadyMarked: readMessageIdsRef.current.has(messageId)
+                  });
+                  }
+              }, 200); // 200ms delay to ensure message is added to DOM and scroll starts
+                } else {
+              console.log('[CollabRoom] ⏸️ User not actively viewing - will not mark new message as read:', {
+                isTabVisible,
+                isWindowFocused,
+                isConversationActive
+              });
+            }
+          } else {
+            console.log('[CollabRoom] ⏭️ Skipping read - message already marked:', messageId);
+          }
+        } else {
+          // Message for another conversation - just acknowledge receipt
+          ackMessageReceived(messageConvId, data.message._id);
         }
       };
       
       // Listen for message sent status
       const handleMessageSent = (data: { conversationId: string; messageId: string }) => {
         if (data.conversationId === activeConvId) {
+          const prevStatus = messageStatuses[data.messageId] || 'In progress...';
+          const soundNotPlayed = !sentSoundPlayedRef.current.has(data.messageId);
+          
+          // Play sound ONLY on transition to "Sent" (not if already "Sent" or higher)
+          const isTransitionToSent = prevStatus !== 'Sent' && 
+                                      prevStatus !== 'Delivered' && 
+                                      prevStatus !== 'Read';
+          
+          if (isTransitionToSent && soundNotPlayed) {
+            sentSoundPlayedRef.current.add(data.messageId);
+            playMessageSent().catch((err) => {
+              const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+              console.warn('[CollabRoom] playMessageSent failed:', error);
+            });
+          }
+          
           setMessageStatuses(prev => ({
             ...prev,
             [data.messageId]: 'Sent'
@@ -364,6 +899,10 @@ const CollabRoom: React.FC = () => {
               profilePicture: match?.user?.profilePicture,
             };
 
+            const wasTyping = typingUsers.some(u => u.userId === incomingUserId);
+            const isViewingConversation = document.visibilityState === 'visible' && 
+                                           window.__activeConversationId === activeConvId;
+
             if (data.isTyping) {
               setTypingUsers(prev => {
                 const existingIndex = prev.findIndex(u => u.userId === incomingUserId);
@@ -384,40 +923,221 @@ const CollabRoom: React.FC = () => {
               }, 1200);
 
               typingTimeoutsRef.current.set(incomingUserId, timeoutId);
+              
+              // Play typing sound when someone starts typing (once per typing session)
+              const hasTypingUsers = typingUsers.length > 0 || !wasTyping;
+              if (hasTypingUsers && !previousTypingStateRef.current && isViewingConversation && !typingSoundPlayedRef.current) {
+                typingSoundPlayedRef.current = true;
+                playTyping().catch((err) => {
+                  const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+                  console.warn('[CollabRoom] playTyping failed:', error);
+                });
+              }
+              previousTypingStateRef.current = true;
             } else {
-              setTypingUsers(prev => prev.filter(u => u.userId !== incomingUserId));
+              // Instead of immediately removing, set a delay before removing the typing indicator
               const existingTimeout = typingTimeoutsRef.current.get(incomingUserId);
               if (existingTimeout) clearTimeout(existingTimeout);
-              typingTimeoutsRef.current.delete(incomingUserId);
+              
+              // Set timeout to remove typing indicator after a delay
+              const timeoutId = setTimeout(() => {
+                setTypingUsers(current => {
+                  const filtered = current.filter(u => u.userId !== incomingUserId);
+                  // Reset typing sound flag when all users stop typing
+                  if (filtered.length === 0) {
+                    typingSoundPlayedRef.current = false;
+                    previousTypingStateRef.current = false;
+                  }
+                  return filtered;
+                });
+                typingTimeoutsRef.current.delete(incomingUserId);
+              }, 1500); // 1.5 second delay before hiding typing indicator
+              
+              typingTimeoutsRef.current.set(incomingUserId, timeoutId);
             }
           }
+        }
+      };
+      
+      // Listen for message seen/read events (server broadcast)
+      const handleMessageSeen = (payload: { conversationId: string; userId: string; messageId?: string; seq?: number; timestamp?: string; nodeId?: string }) => {
+        const eventTimestamp = new Date().toISOString();
+        console.log('[CollabRoom] 📖 [SERVER BROADCAST RECEIVED] message:seen event received:', { 
+          conversationId: payload.conversationId, 
+          userId: payload.userId, 
+          messageId: payload.messageId,
+          seq: payload.seq,
+          timestamp: payload.timestamp,
+          nodeId: payload.nodeId,
+          activeConvId,
+          eventReceivedAt: eventTimestamp
+        });
+        
+        if (payload.conversationId === activeConvId) {
+          const readerUserId = payload.userId;
+          const messageId = payload.messageId;
+          
+          // Normalize readerUserId to string
+          const readerIdStr = typeof readerUserId === 'string' ? readerUserId : String(readerUserId);
+          const currentUserIdStr = user?._id ? String(user._id) : '';
+          
+          // Skip if this is our own read event (we already know about it)
+          if (readerIdStr === currentUserIdStr) {
+            console.log('[CollabRoom] ⏭️ Ignoring own read event');
+            return;
+          }
+          
+          console.log('[CollabRoom] 📖 [PROCESSING BROADCAST] Processing read event for conversation:', {
+            activeConvId,
+            readerUserId: readerIdStr,
+            messageId,
+            currentUserId: currentUserIdStr
+          });
+          
+          // Update messages state to reflect read status
+          setMessages(prev => {
+            let hasUpdates = false;
+            const updated = prev.map(msg => {
+              // If specific messageId provided, only update that message
+              if (messageId && msg._id !== messageId) {
+                return msg;
+              }
+              
+              // Only update own messages (messages sent by current user)
+              if (msg.sender._id !== user?._id) {
+                return msg;
+              }
+              
+              // Check if this user already marked as read
+              const seenBy = msg.seenBy || [];
+              const alreadySeen = seenBy.some((id: any) => {
+                const idStr = typeof id === 'string' ? id : (id?.toString?.() || String(id));
+                return idStr === readerIdStr;
+              });
+              
+              if (!alreadySeen) {
+                hasUpdates = true;
+                // Add reader to seenBy array
+                const updatedSeenBy = [...seenBy, readerUserId];
+                
+                console.log('[CollabRoom] ✅ [STATE UPDATE] Marking message as read:', {
+                  messageId: msg._id,
+                  readerUserId: readerIdStr,
+                  previousSeenBy: seenBy,
+                  updatedSeenBy
+                });
+                
+                // Play read sound if this is the current user's message and user is viewing
+                const isViewingConversation = document.visibilityState === 'visible' && 
+                                               window.__activeConversationId === activeConvId;
+                const soundNotPlayed = !readSoundPlayedRef.current.has(msg._id);
+                
+                if (isViewingConversation && soundNotPlayed) {
+                  readSoundPlayedRef.current.add(msg._id);
+                  console.log('[CollabRoom] 🎵 Playing read sound for message:', msg._id);
+                  playMessageRead().catch((err) => {
+                    const error = err && err.error ? err.error : (err && err.message ? err.message : String(err));
+                    console.warn('[CollabRoom] playMessageRead failed:', error);
+                  });
+                }
+                
+                return {
+                  ...msg,
+                  seenBy: updatedSeenBy
+                };
+              }
+              
+              return msg;
+            });
+            
+            if (hasUpdates) {
+              console.log('[CollabRoom] ✅ [STATE UPDATE COMPLETE] Updated messages state with read status:', {
+                conversationId: activeConvId,
+                readerUserId: readerIdStr,
+                messagesUpdated: updated.filter(msg => {
+                  if (msg.sender._id !== user?._id) return false;
+                  const seenBy = msg.seenBy || [];
+                  return seenBy.some((id: any) => {
+                    const idStr = typeof id === 'string' ? id : (id?.toString?.() || String(id));
+                    return idStr === readerIdStr;
+                  });
+                }).length
+              });
+            } else {
+              console.log('[CollabRoom] ⏭️ [STATE UPDATE SKIP] No updates needed - messages already marked as read');
+            }
+            
+            return updated;
+          });
+        } else {
+          console.log('[CollabRoom] ⏭️ [BROADCAST IGNORED] Ignoring read event - different conversation:', {
+            payloadConversationId: payload.conversationId,
+            activeConvId
+          });
         }
       };
       
       const offMessageNew = onMessageNew(handleMessageNew);
       const offMessageSent = onMessageSent(handleMessageSent);
       const offMessageDelivered = onMessageDelivered(handleMessageDelivered);
+      const offMessageSeen = onMessageSeen(handleMessageSeen);
       const offTyping = onTyping(handleTyping);
-      
+
       return () => {
         offMessageNew();
         offMessageSent();
         offMessageDelivered();
+        offMessageSeen();
         offTyping();
+        // Clean up mark read timeout
+        if (markReadTimeoutRef.current) {
+          clearTimeout(markReadTimeoutRef.current);
+          markReadTimeoutRef.current = null;
+        }
+        // Clean up sound tracking refs
+        sentSoundPlayedRef.current.clear();
+        readSoundPlayedRef.current.clear();
+        lastKnownReadStateRef.current.clear();
+        typingSoundPlayedRef.current = false;
+        previousTypingStateRef.current = false;
         typingTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
         typingTimeoutsRef.current.clear();
         setTypingUsers([]);
+        readMessageIdsRef.current.clear(); // Clear read tracking on unmount
+        lastReadEmitRef.current.clear(); // Clear last emit times on unmount
         const activeId = selectedConversation?._id || conversationId;
         if (activeId) {
           sendTyping(activeId, false, user?.name);
         }
       };
     }
-  }, [selectedConversation, conversationId, roomId, onMessageNew, onMessageSent, onMessageDelivered, onTyping, ackMessageReceived, joinConversation, user?._id]);
+  }, [selectedConversation, conversationId, roomId, onMessageNew, onMessageSent, onMessageDelivered, onMessageSeen, onTyping, ackMessageReceived, joinConversation, user?._id, shouldMarkReadForFullView, markAsReadIfScrolledToBottom]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-mark as read when messages change and user is viewing (scrolled to bottom)
+  useEffect(() => {
+    const activeConvId = selectedConversation?._id || conversationId;
+    if (!activeConvId || messages.length === 0) return;
+
+    // Check if should mark as read after messages update
+    // This handles cases where messages are already loaded and user is viewing
+    const checkAndMarkAsRead = () => {
+      if (shouldMarkReadForFullView(activeConvId)) {
+        console.log('[CollabRoom] 📖 Messages changed - checking read status:', {
+          conversationId: activeConvId,
+          messageCount: messages.length
+        });
+        markAsReadIfScrolledToBottom(activeConvId);
+      }
+    };
+
+    // Check after a short delay to ensure scroll completes
+    const timeoutId = setTimeout(checkAndMarkAsRead, 250);
+    return () => clearTimeout(timeoutId);
+  }, [messages.length, selectedConversation, conversationId, shouldMarkReadForFullView, markAsReadIfScrolledToBottom]);
 
   const fetchRoomAndConversation = async () => {
     try {
@@ -464,10 +1184,6 @@ const CollabRoom: React.FC = () => {
     } catch (error) {
       console.error('[CollabRoom] Failed to fetch messages:', error);
     }
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -612,14 +1328,7 @@ const CollabRoom: React.FC = () => {
   
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return date.toLocaleDateString();
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   // Filter conversations by search term
@@ -649,6 +1358,38 @@ const CollabRoom: React.FC = () => {
     }
     return room?.name || 'Room Chat';
   };
+
+  // Get online participants (aggregate status) - matching RoomChatWidget
+  const onlineParticipants = useMemo(() => {
+    if (!room?.participants?.length) return [];
+    const currentUserId = user?._id ? user._id.toString() : '';
+    return room.participants
+      .filter((p: any) => {
+        const participantId = p?.user?._id ? p.user._id.toString() : null;
+        if (!participantId || participantId === currentUserId) return false;
+        const status = getUserStatus(participantId);
+        return status.status === 'online';
+      })
+      .map((p: any) => ({
+        _id: p.user._id,
+        name: p.user.name,
+        profilePicture: p.user.profilePicture,
+      }))
+      .slice(0, 3); // Show up to 3 online users
+  }, [room?.participants, user?._id, getUserStatus]);
+
+  const onlineCount = useMemo(() => {
+    if (!room?.participants?.length) return 0;
+    const currentUserId = user?._id ? user._id.toString() : '';
+    return room.participants.filter((p: any) => {
+      const participantId = p?.user?._id ? p.user._id.toString() : null;
+      if (!participantId || participantId === currentUserId) return false;
+      const status = getUserStatus(participantId);
+      return status.status === 'online';
+    }).length;
+  }, [room?.participants, user?._id, getUserStatus]);
+
+  const extraOnlineCount = Math.max(0, onlineCount - 3);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -726,8 +1467,8 @@ const CollabRoom: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-bold text-secondary-900 mb-4">Unable to open room</h1>
-          <p className="text-secondary-600 mb-6">{errorMessage}</p>
+          <h1 className="text-2xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Unable to open room</h1>
+          <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">{errorMessage}</p>
           <button onClick={() => navigate('/app/feed')} className="btn-primary">
             Back to Feed
           </button>
@@ -792,37 +1533,44 @@ const CollabRoom: React.FC = () => {
       )}
       {isVideoCallActive && !roomId && (
         <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6">
             <p className="text-red-600">Error: Room ID is missing</p>
             <button onClick={endVideoCall} className="btn-primary mt-4">Close</button>
           </div>
         </div>
       )}
       
-      <div className="flex max-h-[700px] bg-gray-50" style={{ height: 'calc(100vh - 80px)' }}>
+      <div className="flex max-h-[700px] bg-gray-50 dark:bg-[var(--bg-page)]" style={{ height: 'calc(100vh - 80px)' }}>
         {/* Left Panel: Conversation List (Inbox) */}
-        <div className={`${inboxCollapsed ? 'w-0 hidden md:block md:w-16' : 'w-full md:w-80'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
+        <div className={`${inboxCollapsed ? 'w-0 hidden md:block md:w-16' : 'w-0 md:w-80'} transition-all duration-300 bg-white dark:bg-[var(--bg-card)] border-r border-gray-200 dark:border-[var(--border-color)] flex flex-col overflow-hidden`}>
           {!inboxCollapsed && (
             <>
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-secondary-900">Messages</h2>
+              <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)] flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">Messages</h2>
                 <button
                   onClick={() => setInboxCollapsed(true)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="hidden md:flex p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
                   title="Collapse inbox"
                 >
-                  <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+                  <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-[var(--icon-color)]" />
+                </button>
+                <button
+                  onClick={() => setShowMobileInbox(false)}
+                  className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+                  title="Close inbox"
+                >
+                  <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-[var(--icon-color)]" />
                 </button>
               </div>
-              <div className="p-4 border-b border-gray-200">
+              <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)]">
                 <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-[var(--icon-color)]" />
                   <input
                     type="text"
                     placeholder="Search conversations..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)]"
                   />
                 </div>
               </div>
@@ -852,15 +1600,15 @@ const CollabRoom: React.FC = () => {
                       <div
                         key={conv._id}
                         onClick={() => handleSelectConversation(conv)}
-                        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                          isSelected ? 'bg-primary-50 border-l-4 border-l-primary-600' : ''
-                        } ${isRoom ? 'bg-blue-50/50' : ''}`}
+                        className={`p-4 border-b border-gray-100 dark:border-[var(--border-color)] cursor-pointer hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors ${
+                          isSelected ? 'bg-primary-50 dark:bg-[var(--bg-hover)] border-l-4 border-l-primary-600 dark:border-l-[var(--link-color)]' : ''
+                        } ${isRoom ? 'bg-blue-50/50 dark:bg-[var(--bg-hover)]/50' : ''}`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="relative">
                             {isRoom ? (
-                              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                                <UserGroupIcon className="h-6 w-6 text-blue-600" />
+                              <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-[var(--bg-panel)] flex items-center justify-center">
+                                <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-[var(--link-color)]" />
                               </div>
                             ) : (
                               <>
@@ -873,7 +1621,7 @@ const CollabRoom: React.FC = () => {
                                   userId={other?._id || ''} 
                                   showText={false}
                                   glow
-                                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white"
+                                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white dark:ring-[var(--bg-card)]"
                                 />
                               </>
                             )}
@@ -881,7 +1629,7 @@ const CollabRoom: React.FC = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <h3 className="text-sm font-medium text-secondary-900 truncate">
+                                <h3 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate">
                                   {isRoom ? conv.roomName || 'Room' : other?.name}
                                 </h3>
                                 {isRoom && conv.roomStatus && (
@@ -935,33 +1683,76 @@ const CollabRoom: React.FC = () => {
 
         {/* Center Panel: Chat Thread */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="bg-white border-b border-gray-200 p-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          {/* Header - Matching RoomChatWidget layout */}
+          <div className="bg-white dark:bg-[var(--bg-card)] border-b border-gray-200 dark:border-[var(--border-color)] p-3 flex items-center justify-between bg-primary-50 dark:bg-[var(--bg-hover)]">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
               <button
-                onClick={() => setShowMobileInbox(true)}
-                className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
+                onClick={() => {
+                  setShowMobileInbox(true);
+                }}
+                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg flex-shrink-0"
                 title="Show inbox"
               >
-                <Bars3Icon className="h-5 w-5" />
+                <Bars3Icon className="h-5 w-5 text-gray-600 dark:text-[var(--icon-color)]" />
               </button>
-              <div>
-                <h1 className="text-lg font-bold text-secondary-900">{getActiveConversationName()}</h1>
-                {roomId && room && (
-                  <div className="flex items-center mt-1 space-x-4">
-                    <div className="flex items-center text-sm text-secondary-500">
-                      <UserGroupIcon className="h-4 w-4 mr-1" />
-                      {room.participants.length} {room.participants.length === 1 ? 'participant' : 'participants'}
-                    </div>
-                    <div className="flex items-center text-sm text-secondary-500">
-                      <ClockIcon className="h-4 w-4 mr-1" />
-                      {room.status === 'Active' ? 'Live' : room.status}
-                    </div>
-                </div>
+              {inboxCollapsed && (
+                <button
+                  onClick={() => setInboxCollapsed(false)}
+                  className="hidden md:flex p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg flex-shrink-0"
+                  title="Show inbox"
+                >
+                  <Bars3Icon className="h-5 w-5 text-gray-600 dark:text-[var(--icon-color)]" />
+                </button>
               )}
+              <div className="relative flex-shrink-0">
+                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-[var(--bg-panel)] flex items-center justify-center">
+                  <UserGroupIcon className="h-5 w-5 text-blue-600 dark:text-[var(--link-color)]" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate leading-tight">{getActiveConversationName()}</h1>
+                <div className="mt-0.5">
+                  {roomId && room ? (
+                    onlineCount > 0 ? (
+                      <div className="flex items-center gap-1.5">
+                        {/* Show up to 3 online user avatars */}
+                        <div className="flex -space-x-1.5">
+                          {onlineParticipants.map((participant) => (
+                            <div key={participant._id} className="relative">
+                              <img
+                                src={getProfileImageUrl(participant.profilePicture) || '/default-avatar.png'}
+                                alt={participant.name}
+                                className="h-4 w-4 rounded-full border border-white object-cover"
+                              />
+                              <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white"></div>
+                            </div>
+                          ))}
+                        </div>
+                        {extraOnlineCount > 0 && (
+                          <span className="text-xs text-gray-500">
+                            and {extraOnlineCount} more online
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">No one online</span>
+                    )
+                  ) : (
+                    <span className="text-xs text-gray-500">Select a conversation</span>
+                  )}
+                </div>
+                {typingUsers.length > 0 && (
+                  <p className="text-xs font-medium text-[#3D61D4] animate-pulse mt-0.5">
+                    {typingUsers.length === 1 
+                      ? 'Someone is typing…'
+                      : typingUsers.length <= 4
+                      ? `${typingUsers.length} people are typing…`
+                      : '4+ people are typing…'}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex space-x-2">
+            <div className="flex space-x-2 items-center">
               {roomId && (
                 <>
             <button
@@ -990,8 +1781,31 @@ const CollabRoom: React.FC = () => {
             </div>
           </div>
 
-          {/* Chat Messages */}
-          <div className="flex-1 bg-white overflow-y-auto p-3 space-y-1.5">
+          {/* Chat Messages - Matching RoomChatWidget padding and spacing */}
+          <div 
+            ref={messagesContainerRef}
+            className="flex-1 bg-white dark:bg-[var(--bg-card)] overflow-y-auto p-3 space-y-2"
+            onScroll={() => {
+              // Debounce scroll handler to avoid excessive calls
+              const activeConvId = selectedConversation?._id || conversationId;
+              if (!activeConvId || document.visibilityState !== 'visible') return;
+              
+              // Clear existing scroll timeout
+              if (markReadTimeoutRef.current) {
+                clearTimeout(markReadTimeoutRef.current);
+              }
+              
+              // Debounce scroll events - only check after scrolling stops
+              markReadTimeoutRef.current = setTimeout(() => {
+                const shouldMark = shouldMarkReadForFullView(activeConvId);
+                if (shouldMark) {
+                  console.log('[CollabRoom] 📖 Scroll to bottom detected - marking as read');
+                  markAsReadIfScrolledToBottom(activeConvId);
+                }
+                markReadTimeoutRef.current = null;
+              }, 300); // 300ms debounce - wait for scroll to settle
+            }}
+          >
               {messages.map((message, index) => {
                 const isOwnMessage = message.sender._id === user?._id;
                 const status = getMessageStatus(message);
@@ -1019,24 +1833,22 @@ const CollabRoom: React.FC = () => {
                         className="h-8 w-8 rounded-full object-cover flex-shrink-0"
                       />
                     )}
-                    <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} max-w-[280px] lg:max-w-[350px]`}>
+                    <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} max-w-[75%]`}>
                       {showSenderName && (
-                        <div className={`text-xs font-medium mb-1 px-2 ${isOwnMessage ? 'text-secondary-600' : 'text-secondary-700'}`}>
-                        {message.sender.name}
+                        <div className="text-xs text-gray-500 dark:text-[var(--text-muted)] mb-0.5 px-1">
+                          {!isOwnMessage && message.sender.name}
                         </div>
                       )}
                       <div
-                        className={`px-3 py-2 rounded-lg ${
+                        className={`px-3 py-1.5 rounded-lg text-sm ${
                           isOwnMessage
                             ? 'bg-[#3D61D4] text-white rounded-br-sm'
-                            : 'bg-secondary-100 text-secondary-900 rounded-bl-sm'
+                            : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-secondary-900 dark:text-[var(--text-primary)] rounded-bl-sm'
                         }`}
                       >
-                        <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
-                        <div className={`flex items-center justify-end gap-2 mt-1 ${isOwnMessage ? 'text-primary-100' : 'text-secondary-500'}`}>
-                          <span className="text-xs">
-                            {formatTime(message.createdAt)}
-                          </span>
+                        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                        <div className={`flex items-center gap-1 mt-0.5 ${isOwnMessage ? 'text-primary-100' : 'text-gray-500 dark:text-[var(--text-muted)]'}`}>
+                          <span className="text-[10px]">{formatTime(message.createdAt)}</span>
                         </div>
                       </div>
                       {/* Use shared component for consistent status rendering */}
@@ -1067,22 +1879,15 @@ const CollabRoom: React.FC = () => {
                         />
                       )}
                     </div>
-                    {isOwnMessage && (
-                      <img
-                        src={getProfileImageUrl(user?.profilePicture) || '/default-avatar.png'}
-                        alt={user?.name}
-                        className="h-8 w-8 rounded-full object-cover flex-shrink-0"
-                      />
-                    )}
-                    </div>
+                  </div>
                 );
               })}
               <TypingActivityBar users={typingUsers} />
               <div ref={messagesEndRef} />
-            </div>
+          </div>
 
             {/* Message Input */}
-          <div className="p-3 border-t border-gray-200 bg-white">
+          <div className="p-3 border-t border-gray-200 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)]">
               <form onSubmit={handleSendMessage} className="flex space-x-2 items-end">
               {roomId && conversationId && (
                 <CreateMenu roomId={roomId} conversationId={conversationId} />
@@ -1203,33 +2008,49 @@ const CollabRoom: React.FC = () => {
         {/* Mobile Inbox Overlay */}
         {showMobileInbox && (
           <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex">
-            <div className="w-80 bg-white h-full overflow-y-auto">
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-secondary-900">Messages</h2>
+            <div className="w-80 bg-white dark:bg-[var(--bg-card)] h-full overflow-y-auto flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)] flex items-center justify-between flex-shrink-0">
+                <h2 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">Messages</h2>
               <button
                   onClick={() => setShowMobileInbox(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg"
               >
                   <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
-              <div className="p-4 border-b border-gray-200">
+              <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)] flex-shrink-0">
                 <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-[var(--icon-color)]" />
                 <input
                   type="text"
                     placeholder="Search conversations..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] placeholder-gray-400 dark:placeholder-[var(--text-muted)]"
                   />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto">
-                {filteredConversations.map((conv) => {
+                {conversationsLoading ? (
+                  <div className="p-4 text-center text-gray-500">Loading...</div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    {searchTerm ? 'No conversations found' : 'No messages yet'}
+                  </div>
+                ) : (
+                  filteredConversations.map((conv) => {
                   const isRoom = conv.isRoom && conv.roomId;
                   const other = conv.otherParticipant || conv.participants.find(p => p._id !== user?._id);
                   const isSelected = selectedConversation?._id === conv._id || (isRoom && conv.roomId === roomId);
+                    
+                    const getRoomStatusColor = (status?: string) => {
+                      switch (status) {
+                        case 'Active': return 'bg-green-100 text-green-700';
+                        case 'Completed': return 'bg-gray-100 text-gray-700';
+                        case 'Cancelled': return 'bg-red-100 text-red-700';
+                        default: return 'bg-gray-100 text-gray-700';
+                      }
+                    };
                   
                   return (
                     <div
@@ -1238,41 +2059,71 @@ const CollabRoom: React.FC = () => {
                         handleSelectConversation(conv);
                         setShowMobileInbox(false);
                       }}
-                      className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                        isSelected ? 'bg-primary-50 border-l-4 border-l-primary-600' : ''
-                      }`}
+                        className={`p-4 border-b border-gray-100 dark:border-[var(--border-color)] cursor-pointer hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors ${
+                        isSelected ? 'bg-primary-50 dark:bg-[var(--bg-hover)] border-l-4 border-l-primary-600 dark:border-l-[var(--link-color)]' : ''
+                        } ${isRoom ? 'bg-blue-50/50 dark:bg-[var(--bg-hover)]/50' : ''}`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           {isRoom ? (
-                            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                              <UserGroupIcon className="h-6 w-6 text-blue-600" />
+                            <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-[var(--bg-panel)] flex items-center justify-center">
+                              <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-[var(--link-color)]" />
                             </div>
                           ) : (
+                              <>
                             <img
                               src={getProfileImageUrl(other?.profilePicture) || '/default-avatar.png'}
                               alt={other?.name}
                               className="h-12 w-12 rounded-full object-cover"
                             />
+                                <UserStatusBadge 
+                                  userId={other?._id || ''} 
+                                  showText={false}
+                                  glow
+                                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white dark:ring-[var(--bg-card)]"
+                                />
+                              </>
                       )}
                     </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-secondary-900 truncate">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate">
                             {isRoom ? conv.roomName || 'Room' : other?.name}
                           </h3>
-                          <p className="text-sm text-gray-600 truncate">
+                                {isRoom && conv.roomStatus && (
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${getRoomStatusColor(conv.roomStatus)}`}>
+                                    {conv.roomStatus}
+                                  </span>
+                                )}
+                              </div>
+                              {conv.lastMessage && (
+                                <span className="text-xs text-gray-500 dark:text-[var(--text-muted)] ml-2 flex-shrink-0">
+                                  {formatTime(conv.lastMessageAt)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm text-gray-600 dark:text-[var(--text-secondary)] truncate flex-1">
                             {conv.lastMessage?.content || 'No messages yet'}
                           </p>
-                  </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {conv.isMuted && (
+                                  <BellSlashIcon className="h-4 w-4 text-gray-400" />
+                                )}
                         {conv.unreadCount > 0 && (
                           <span className="bg-primary-600 text-white text-xs font-medium rounded-full px-2 py-0.5">
                             {conv.unreadCount}
                       </span>
                     )}
+                              </div>
+                            </div>
+                          </div>
                   </div>
                 </div>
                   );
-                })}
+                  })
+                )}
               </div>
             </div>
             <div className="flex-1" onClick={() => setShowMobileInbox(false)} />
@@ -1282,12 +2133,12 @@ const CollabRoom: React.FC = () => {
         {/* Mobile Sidebar Overlay */}
         {showMobileSidebar && roomId && room && (
           <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex">
-            <div className="w-80 bg-white h-full">
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-secondary-900">CollabTools</h2>
+            <div className="w-80 bg-white dark:bg-[var(--bg-card)] h-full">
+              <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)] flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)]">CollabTools</h2>
                 <button
                   onClick={() => setShowMobileSidebar(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-lg"
                 >
                   <XMarkIcon className="h-5 w-5" />
                 </button>

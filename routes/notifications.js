@@ -279,10 +279,17 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // GET /api/notifications/unread-count (static routes must come before dynamic :id routes)
+// Exclude message notifications - they should only appear in Messages dropdown
 router.get('/unread-count', authenticateToken, async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ recipient: req.user._id, read: false });
-    console.log('[Notifications] Unread count requested:', { userId: req.user._id, count });
+    // Count unread notifications excluding message type
+    // Message notifications should only appear in Messages dropdown, not bell notifications
+    const count = await Notification.countDocuments({ 
+      recipient: req.user._id, 
+      read: false,
+      type: { $ne: 'message' } // Exclude message notifications
+    });
+    console.log('[Notifications] Unread count requested (excluding messages):', { userId: req.user._id, count });
     res.json({ success: true, count });
   } catch (err) {
     console.error('[Notifications] Unread count error:', err);

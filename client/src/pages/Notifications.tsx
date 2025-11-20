@@ -4,7 +4,7 @@ import axios from 'axios';
 import { getProfileImageUrl } from '../utils/image';
 import { formatRelativeTime } from '../utils/formatTime';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { getNotificationTypeLabel, groupNotificationsByTime } from '../utils/notificationLabels';
+import { groupNotificationsByTime } from '../utils/notificationLabels';
 import { useDispatchedUpdates } from '../contexts/NotificationDispatcherContext';
 import { DispatchedUpdate } from '../services/NotificationDispatcher';
 
@@ -92,7 +92,7 @@ const NotificationsPage: React.FC = () => {
     if (!imageSrc) return null;
     return (
       <span
-        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white`}
+        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white dark:ring-[var(--bg-card)]`}
         aria-hidden="true"
       >
         <img src={imageSrc} alt="" className="h-3 w-3 object-contain" />
@@ -104,12 +104,19 @@ const NotificationsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.get('/notifications', { params: { page, pageSize, type: filter !== 'all' ? filter : undefined } });
+      // Exclude message notifications from the filter options and results
+      // Messages should only appear in Messages dropdown, not in bell notifications
+      const typeFilter = filter !== 'all' && filter !== 'message' ? filter : undefined;
+      const res = await axios.get('/notifications', { params: { page, pageSize, type: typeFilter } });
       const data = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-      setItems(data);
-      // Update total count from pagination
+      // Filter out message notifications - they belong in Messages dropdown only
+      const filteredData = data.filter((item: NotificationItem) => item.type !== 'message');
+      setItems(filteredData);
+      // Update total count from pagination (excluding messages)
       if (res.data?.pagination?.total !== undefined) {
-        setTotalCount(res.data.pagination.total);
+        // Calculate count excluding messages
+        const totalExcludingMessages = filteredData.length;
+        setTotalCount(totalExcludingMessages);
       }
     } catch (e: any) {
       // Fallback to empty list without showing error banner so page remains usable
@@ -497,8 +504,8 @@ const NotificationsPage: React.FC = () => {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-secondary-900">Notifications</h1>
-          <p className="text-sm text-secondary-600 mt-1">
+          <h1 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">Notifications</h1>
+          <p className="text-sm text-secondary-600 dark:text-[var(--text-secondary)] mt-1">
             {totalCount} {totalCount === 1 ? 'notification' : 'notifications'}
           </p>
         </div>
@@ -517,7 +524,7 @@ const NotificationsPage: React.FC = () => {
               setFilter(e.target.value);
               setSelectedIds(new Set());
             }}
-            className="border border-secondary-300 rounded-md px-2 py-1 text-sm"
+            className="border border-secondary-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)]"
           >
             <option value="all">All</option>
             <option value="comment_added">Comments</option>
@@ -526,24 +533,24 @@ const NotificationsPage: React.FC = () => {
             <option value="reply_added">Replies</option>
             <option value="connection_request">Connection Requests</option>
             <option value="connection_accepted">Connection Accepted</option>
-            <option value="message">Messages</option>
+            {/* Messages option removed - messages only appear in Messages dropdown */}
             <option value="post_created">New Posts</option>
           </select>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-secondary-200 shadow-sm">
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg border border-secondary-200 dark:border-[var(--border-color)] shadow-sm">
         {loading && (
-          <div className="p-4 text-sm text-secondary-600">Loading…</div>
+          <div className="p-4 text-sm text-secondary-600 dark:text-[var(--text-secondary)]">Loading…</div>
         )}
         {error && (
           <div className="p-4 text-sm text-red-600">{error}</div>
         )}
         {!loading && !error && items.length === 0 && (
-          <div className="p-6 text-sm text-secondary-600">No notifications yet.</div>
+          <div className="p-6 text-sm text-secondary-600 dark:text-[var(--text-secondary)]">No notifications yet.</div>
         )}
         {items.length > 0 && (
-          <div className="p-3 border-b border-secondary-200 flex items-center gap-3">
+          <div className="p-3 border-b border-secondary-200 dark:border-[var(--border-color)] flex items-center gap-3">
             <input
               type="checkbox"
               checked={allSelected}
@@ -551,10 +558,10 @@ const NotificationsPage: React.FC = () => {
                 if (input) input.indeterminate = someSelected;
               }}
               onChange={(e) => handleSelectAll(e.target.checked)}
-              className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500"
+              className="w-4 h-4 text-[#2563EB] bg-white dark:bg-[var(--bg-card)] border-secondary-300 dark:border-[var(--border-color)] rounded focus:ring-primary-500 dark:focus:ring-[var(--link-color)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors"
               onClick={(e) => e.stopPropagation()}
             />
-            <span className="text-sm text-secondary-600">
+            <span className="text-sm text-secondary-600 dark:text-[var(--text-secondary)]">
               {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
             </span>
           </div>
@@ -566,13 +573,13 @@ const NotificationsPage: React.FC = () => {
               {grouped.map((group) => (
                 <div key={group.timeGroup}>
                   {/* Time group header */}
-                  <div className="px-4 py-2 bg-secondary-50 border-b border-secondary-200 sticky top-0 z-10">
-                    <span className="text-xs font-semibold text-secondary-600 uppercase tracking-wide">
+                  <div className="px-4 py-2 bg-secondary-50 dark:bg-[var(--bg-hover)] border-b border-secondary-200 dark:border-[var(--border-color)] sticky top-0 z-10">
+                    <span className="text-xs font-semibold text-secondary-600 dark:text-[var(--text-secondary)] uppercase tracking-wide">
                       {group.timeGroup}
                     </span>
                   </div>
                   {/* Notifications in this time group */}
-                  <ul className="divide-y divide-secondary-200">
+                  <ul className="divide-y divide-secondary-200 dark:divide-[var(--border-color)]">
                     {group.notifications.map((n) => {
                       const isConnectionAccepted = n.type === 'connection_accepted';
                       const isClickable = !isConnectionAccepted;
@@ -580,21 +587,16 @@ const NotificationsPage: React.FC = () => {
                       return (
                         <li
                           key={n._id}
-                          className={`notification-item ${n.read ? '' : 'unread'} p-4 flex items-start gap-3 relative ${
-                            selectedIds.has(n._id) ? 'bg-blue-50' : ''
-                          } ${isClickable ? 'hover:bg-gray-100' : ''}`}
-                          style={n.read ? undefined : { backgroundColor: selectedIds.has(n._id) ? '#E8F2FF' : '#E8F2FF' }}
+                          className={`notification-item ${n.read ? '' : 'unread'} p-4 flex items-start gap-3 relative rounded-lg ${
+                            selectedIds.has(n._id) ? 'bg-[#EFF6FF] dark:bg-[var(--bg-hover)]' : ''
+                          } ${isClickable ? 'hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)]' : ''} ${
+                            n.read ? '' : 'bg-[#EFF6FF] dark:bg-[var(--bg-hover)]'
+                          }`}
                           onContextMenu={(e) => handleRightClick(e, n._id)}
                           onTouchStart={(e) => handleLongPressStart(e, n._id)}
                           onTouchEnd={handleLongPressEnd}
                           onTouchCancel={handleLongPressEnd}
                         >
-                          {/* Type label - top-left corner */}
-                          <div className="absolute top-2 left-2 z-10">
-                            <span className="text-[10px] font-semibold text-secondary-500 uppercase tracking-wide bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
-                              {getNotificationTypeLabel(n.type)}
-                            </span>
-                          </div>
                           <input
                             type="checkbox"
                             checked={selectedIds.has(n._id)}
@@ -603,13 +605,13 @@ const NotificationsPage: React.FC = () => {
                               handleSelectItem(n._id, e.target.checked);
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="mt-5 w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500 flex-shrink-0"
+                            className="w-4 h-4 text-[#2563EB] bg-white dark:bg-[var(--bg-card)] border-secondary-300 dark:border-[var(--border-color)] rounded focus:ring-primary-500 dark:focus:ring-[var(--link-color)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors flex-shrink-0"
                           />
                           <div
                             className={`flex-1 ${isClickable ? 'cursor-pointer' : ''}`}
                             onClick={() => isClickable && handleNotificationClick(n)}
                           >
-                            <div className="flex items-start gap-3 mt-5">
+                            <div className="flex items-start gap-3">
                               <div className="relative flex-shrink-0">
                                 <img
                                   src={getProfileImageUrl(n.actor?.profilePicture) || '/default-avatar.png'}
@@ -622,17 +624,17 @@ const NotificationsPage: React.FC = () => {
                                 <div className="flex items-start justify-between gap-2 mb-1">
                                   <div className="flex-1 min-w-0">
                                     {n.type === 'message' ? (
-                                      <div className={`text-sm ${n.read ? 'text-secondary-900 font-normal' : 'text-secondary-900 font-normal'}`}>
+                                      <div className={`text-sm ${n.read ? 'text-secondary-900 dark:text-[var(--text-primary)] font-normal' : 'text-secondary-900 dark:text-[var(--text-primary)] font-normal'}`}>
                                         <div className="font-medium">{n.actor?.name}</div>
                                         <div className="mt-1 font-normal">{n.message}</div>
                                       </div>
                                     ) : (
-                                      <p className={`text-sm ${n.read ? 'text-secondary-700 font-normal' : 'text-secondary-900 font-semibold'}`}>
+                                      <p className={`text-sm ${n.read ? 'text-secondary-700 dark:text-[var(--text-secondary)] font-normal' : 'text-secondary-900 dark:text-[var(--text-primary)] font-semibold'}`}>
                                         {renderMessage(n.message, n.actor?.name, !!n.read)}
                                       </p>
                                     )}
                                   </div>
-                                  <span className="text-xs text-secondary-500 flex-shrink-0 whitespace-nowrap">
+                                  <span className="text-xs text-secondary-500 dark:text-[var(--text-muted)] flex-shrink-0 whitespace-nowrap">
                                     {formatRelativeTime(n.createdAt)}
                                   </span>
                                 </div>
@@ -653,7 +655,7 @@ const NotificationsPage: React.FC = () => {
                                         e.stopPropagation();
                                         handleDeclineConnection(n);
                                       }}
-                                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                                      className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-[var(--text-primary)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-md hover:bg-gray-200 dark:hover:bg-[var(--bg-panel)] transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-[var(--link-color)]"
                                     >
                                       Decline
                                     </button>
@@ -675,12 +677,12 @@ const NotificationsPage: React.FC = () => {
         {/* Context Menu */}
         {contextMenu && (
           <div
-            className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]"
+            className="fixed z-50 bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-lg border border-secondary-200 dark:border-[var(--border-color)] py-1 min-w-[160px]"
             style={getContextMenuStyle()}
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              className="w-full text-left px-4 py-2 text-sm text-secondary-700 dark:text-[var(--text-primary)] hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)]"
               onClick={() => {
                 const notification = items.find(n => n._id === contextMenu.notificationId);
                 if (notification) {
@@ -692,7 +694,7 @@ const NotificationsPage: React.FC = () => {
               {items.find(n => n._id === contextMenu.notificationId)?.read ? 'Mark as unread' : 'Mark as read'}
             </button>
             <button
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)]"
               onClick={() => {
                 deleteNotification(contextMenu.notificationId, true);
                 setContextMenu(null);
@@ -706,15 +708,15 @@ const NotificationsPage: React.FC = () => {
         {/* Bulk Delete Confirmation Modal */}
         {showBulkDeleteModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-secondary-900 mb-2">Delete Notifications?</h3>
-              <p className="text-sm text-secondary-600 mb-6">
+            <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-secondary-200 dark:border-[var(--border-color)]">
+              <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-2">Delete Notifications?</h3>
+              <p className="text-sm text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
                 Are you sure you want to delete {selectedIds.size} {selectedIds.size === 1 ? 'notification' : 'notifications'}? This action cannot be undone.
               </p>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setShowBulkDeleteModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-secondary-700 bg-secondary-100 rounded-md hover:bg-secondary-200"
+                  className="px-4 py-2 text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] bg-secondary-100 dark:bg-[var(--bg-hover)] rounded-md hover:bg-secondary-200 dark:hover:bg-[var(--bg-panel)]"
                 >
                   Cancel
                 </button>
@@ -759,15 +761,15 @@ const NotificationsPage: React.FC = () => {
         )}
         <div className="p-3 flex items-center justify-between">
           <button
-            className="text-sm px-3 py-1 rounded-md border border-secondary-300 disabled:opacity-50"
+            className="text-sm px-3 py-1 rounded-md border border-secondary-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] disabled:opacity-50"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
           >
             Previous
           </button>
-          <span className="text-sm text-secondary-600">Page {page}</span>
+          <span className="text-sm text-secondary-600 dark:text-[var(--text-secondary)]">Page {page}</span>
           <button
-            className="text-sm px-3 py-1 rounded-md border border-secondary-300"
+            className="text-sm px-3 py-1 rounded-md border border-secondary-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)]"
             onClick={() => setPage((p) => p + 1)}
           >
             Next

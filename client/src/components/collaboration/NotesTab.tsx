@@ -122,13 +122,13 @@ const NotesTab: React.FC<NotesTabProps> = ({ roomId }) => {
   };
 
   if (loading) {
-    return <div className="p-4 text-center text-secondary-600">Loading notes...</div>;
+    return <div className="p-4 text-center text-secondary-600 dark:text-[var(--text-secondary)]">Loading notes...</div>;
   }
 
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="font-medium text-secondary-900">Notes ({notes.length})</h4>
+        <h4 className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">Notes ({notes.length})</h4>
         <button
           onClick={() => {
             setEditingNote(null);
@@ -152,7 +152,7 @@ const NotesTab: React.FC<NotesTabProps> = ({ roomId }) => {
               handleCreateNote(e);
             }
           }}
-          className="mb-4 p-3 bg-secondary-50 rounded-lg"
+          className="mb-4 p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg"
         >
           <input
             type="text"
@@ -189,9 +189,9 @@ const NotesTab: React.FC<NotesTabProps> = ({ roomId }) => {
 
       <div className="space-y-2">
         {notes.map(note => (
-          <div key={note._id} className="p-3 bg-secondary-50 rounded-lg">
+          <div key={note._id} className="p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
             <div className="flex justify-between items-start mb-2">
-              <h5 className="font-medium text-secondary-900 text-sm">{note.title}</h5>
+              <h5 className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm">{note.title}</h5>
               <div className="flex gap-1">
                 <button
                   onClick={() => startEditing(note)}
@@ -210,11 +210,11 @@ const NotesTab: React.FC<NotesTabProps> = ({ roomId }) => {
               </div>
             </div>
             {note.content && (
-              <div className="text-xs text-secondary-600 whitespace-pre-wrap mb-2">
+              <div className="text-xs text-secondary-600 dark:text-[var(--text-secondary)] whitespace-pre-wrap mb-2">
                 {note.content.substring(0, 200)}{note.content.length > 200 ? '...' : ''}
               </div>
             )}
-            <div className="text-xs text-secondary-500">
+            <div className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {note.lastEditedBy ? `Edited by ${note.lastEditedBy.name}` : `Created by ${note.createdBy.name}`}
               {' • '}
               {new Date(note.updatedAt).toLocaleDateString()}
@@ -222,7 +222,7 @@ const NotesTab: React.FC<NotesTabProps> = ({ roomId }) => {
           </div>
         ))}
         {notes.length === 0 && (
-          <p className="text-center text-secondary-500 text-sm py-8">No notes yet</p>
+          <p className="text-center text-secondary-500 dark:text-[var(--text-secondary)] text-sm py-8">No notes yet</p>
         )}
       </div>
     </div>

@@ -138,7 +138,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
   };
 
   return (
-    <div className="p-3 border-b border-gray-200">
+    <div className="p-3 border-b border-gray-200 dark:border-[var(--border-color)]">
       <div className="flex items-center justify-between">
         <div className="flex items-start gap-3">
           <div className="relative flex-shrink-0">
@@ -151,17 +151,17 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
               userId={otherUser._id} 
               showText={false}
               glow
-              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white"
+              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white dark:ring-[var(--bg-card)]"
             />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-medium text-secondary-900 leading-tight">
+              <h3 className="text-base font-medium text-secondary-900 dark:text-[var(--text-primary)] leading-tight">
                 {otherUser.name}
               </h3>
               {isMuted && (
                 <span
-                  className="text-gray-400"
+                  className="text-gray-400 dark:text-[var(--text-muted)]"
                   title="Notifications silenced — you'll still see unread messages in your Inbox."
                 >
                   <BellSlashIcon className="h-4 w-4" />
@@ -179,17 +179,17 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] text-gray-600 dark:text-[var(--icon-color)] hover:text-gray-900 dark:hover:text-[var(--text-primary)] transition-colors"
             aria-label="Conversation options"
           >
             <EllipsisHorizontalIcon className="h-6 w-6" />
           </button>
           
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[var(--bg-card)] rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-[var(--border-color)]">
               <button
                 onClick={handleViewProfile}
-                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-[var(--text-primary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]"
               >
                 <UserCircleIcon className="h-4 w-4 mr-3" />
                 View Profile
@@ -198,7 +198,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
               {conversationId && onMuteConversation && (
                 <button
                   onClick={handleMute}
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-[var(--text-primary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]"
                 >
                   <BellSlashIcon className="h-4 w-4 mr-3" />
                   {isMuted ? 'Unmute Conversation' : 'Mute Conversation'}
@@ -208,7 +208,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
               {onBlockUser && (
                 <button
                   onClick={handleBlock}
-                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-[var(--text-primary)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]"
                 >
                   <NoSymbolIcon className="h-4 w-4 mr-3" />
                   Block User
@@ -217,10 +217,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
               
               {conversationId && onDeleteConversation && (
                 <>
-                  <div className="border-t border-gray-200 my-1" />
+                  <div className="border-t border-gray-200 dark:border-[var(--border-color)] my-1" />
                   <button
                     onClick={handleDelete}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <TrashIcon className="h-4 w-4 mr-3" />
                     Delete Conversation
@@ -230,10 +230,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = memo(({
               
               {onReport && (
                 <>
-                  <div className="border-t border-gray-200 my-1" />
+                  <div className="border-t border-gray-200 dark:border-[var(--border-color)] my-1" />
                   <button
                     onClick={handleReport}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <ExclamationTriangleIcon className="h-4 w-4 mr-3" />
                     Report User

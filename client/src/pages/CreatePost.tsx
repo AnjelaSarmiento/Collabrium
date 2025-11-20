@@ -102,30 +102,30 @@ const CreatePost: React.FC = () => {
       <div className="mb-8">
         <button
           onClick={() => navigate('/app/feed')}
-          className="flex items-center text-secondary-600 hover:text-secondary-900 mb-4"
+          className="flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)] mb-4"
         >
           <ArrowLeftIcon className="h-5 w-5 mr-2" />
           Back to CollabFeed
         </button>
         
-        <h1 className="text-3xl font-bold text-secondary-900">Create New Post</h1>
-        <p className="mt-2 text-secondary-600">
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)]">Create New Post</h1>
+        <p className="mt-2 text-secondary-600 dark:text-[var(--text-secondary)]">
           Share a collaboration opportunity or paid task with the community
         </p>
       </div>
 
       {/* Form */}
-      <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-8">
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <p className="text-red-800">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+              <p className="text-red-800 dark:text-red-200">{error}</p>
             </div>
           )}
 
           {/* Title */}
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="title" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Title *
             </label>
             <input
@@ -139,14 +139,14 @@ const CreatePost: React.FC = () => {
               onChange={handleChange}
               maxLength={100}
             />
-            <p className="mt-1 text-xs text-secondary-500">
+            <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {formData.title.length}/100 characters
             </p>
           </div>
 
           {/* Description */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="description" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Description *
             </label>
             <textarea
@@ -160,14 +160,14 @@ const CreatePost: React.FC = () => {
               onChange={handleChange}
               maxLength={2000}
             />
-            <p className="mt-1 text-xs text-secondary-500">
+            <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {formData.description.length}/2000 characters
             </p>
           </div>
 
           {/* Type */}
           <div>
-            <label htmlFor="type" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="type" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Type *
             </label>
             <select
@@ -185,7 +185,7 @@ const CreatePost: React.FC = () => {
           {/* Reward (only for Paid Task) */}
           {formData.type === 'Paid Task' && (
             <div>
-              <label htmlFor="reward" className="block text-sm font-medium text-secondary-700 mb-2">
+              <label htmlFor="reward" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 <CurrencyDollarIcon className="h-4 w-4 inline mr-1" />
                 Reward (CollabPoints) *
               </label>
@@ -205,7 +205,7 @@ const CreatePost: React.FC = () => {
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               <TagIcon className="h-4 w-4 inline mr-1" />
               Tags
             </label>
@@ -230,27 +230,27 @@ const CreatePost: React.FC = () => {
               {formData.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center px-3 py-1 bg-primary-100 text-primary-800 text-sm rounded-full"
+                  className="inline-flex items-center px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-200 text-sm rounded-full"
                 >
                   #{tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="ml-2 text-primary-600 hover:text-primary-800"
+                    className="ml-2 text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
                   >
                     ×
                   </button>
                 </span>
               ))}
             </div>
-            <p className="mt-1 text-sm text-secondary-500">
+            <p className="mt-1 text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
               Tags help others find your post. Add tags one by one.
             </p>
           </div>
 
           {/* Deadline */}
           <div>
-            <label htmlFor="deadline" className="block text-sm font-medium text-secondary-700 mb-2">
+            <label htmlFor="deadline" className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
               Deadline (Optional)
             </label>
             <input
@@ -271,9 +271,9 @@ const CreatePost: React.FC = () => {
               name="isUrgent"
               checked={formData.isUrgent}
               onChange={handleChange}
-              className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              className="rounded border-secondary-300 dark:border-[var(--border-color)] text-[#2563EB] focus:ring-primary-500 dark:focus:ring-[var(--link-color)] bg-white dark:bg-[var(--bg-card)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors"
             />
-            <label htmlFor="isUrgent" className="ml-2 text-sm text-secondary-700">
+            <label htmlFor="isUrgent" className="ml-2 text-sm text-secondary-700 dark:text-[var(--text-primary)]">
               Mark as urgent
             </label>
           </div>
@@ -281,7 +281,7 @@ const CreatePost: React.FC = () => {
           {/* Collaboration Settings */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 Maximum Collaborators (0 = unlimited)
               </label>
               <input
@@ -299,31 +299,31 @@ const CreatePost: React.FC = () => {
                   }
                 }}
               />
-              <p className="mt-1 text-xs text-secondary-500">
+              <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 Leave blank or set to 0 for unlimited collaborators.
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                 Accept Collaboration Requests
               </label>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setCollabOpen(true)}
-                  className={`px-3 py-2 rounded border ${collabOpen ? 'bg-green-600 text-white border-green-600' : 'bg-white text-secondary-700 border-secondary-300'}`}
+                  className={`px-3 py-2 rounded border transition-colors ${collabOpen ? 'bg-green-600 text-white border-green-600' : 'bg-white dark:bg-[var(--bg-card)] text-secondary-700 dark:text-[var(--text-primary)] border-secondary-300 dark:border-[var(--border-color)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]'}`}
                 >
                   Open
                 </button>
                 <button
                   type="button"
                   onClick={() => setCollabOpen(false)}
-                  className={`px-3 py-2 rounded border ${!collabOpen ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-secondary-700 border-secondary-300'}`}
+                  className={`px-3 py-2 rounded border transition-colors ${!collabOpen ? 'bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-600' : 'bg-white dark:bg-[var(--bg-card)] text-secondary-700 dark:text-[var(--text-primary)] border-secondary-300 dark:border-[var(--border-color)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)]'}`}
                 >
                   Closed
                 </button>
               </div>
-              <p className="mt-1 text-xs text-secondary-500">
+              <p className="mt-1 text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                 You can change this anytime after the post is created.
               </p>
             </div>

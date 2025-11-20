@@ -160,7 +160,7 @@ const BinPostDetail: React.FC = () => {
       <div className="mb-6">
         <Link
           to="/app/bin"
-          className="inline-flex items-center text-secondary-600 hover:text-secondary-900 mb-4"
+          className="inline-flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)] mb-4"
         >
           <ArrowLeftIcon className="h-4 w-4 mr-2" />
           Back to Bin
@@ -179,12 +179,12 @@ const BinPostDetail: React.FC = () => {
             <div className="ml-4">
               <Link 
                 to={`/app/profile/${post.author._id}`}
-                className="text-lg font-medium text-secondary-900 hover:text-primary-600 transition-colors duration-200"
+                className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors duration-200"
               >
                 {post.author.name}
               </Link>
               <div className="flex items-center">
-                <span className="text-sm text-secondary-500">
+                <span className="text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
                   ⭐ {post.author.rating.toFixed(1)} • {post.author.completedCollaborations} collaborations
                 </span>
               </div>
@@ -193,27 +193,27 @@ const BinPostDetail: React.FC = () => {
           <div className="flex items-center space-x-2">
             <span className={`px-3 py-1 text-sm font-medium rounded-full ${
               post.type === 'Paid Task'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-blue-100 text-blue-800'
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
             }`}>
               {post.type}
             </span>
-            <span className="px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-800">
+            <span className="px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200">
               Deleted
             </span>
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-secondary-900 mb-4">
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
           {post.title}
         </h1>
         
-        <p className="text-secondary-600 text-lg mb-6 whitespace-pre-wrap">
+        <p className="text-secondary-600 dark:text-[var(--text-secondary)] text-lg mb-6 whitespace-pre-wrap">
           {post.description}
         </p>
 
         {post.reward && (
-          <div className="flex items-center text-green-600 font-medium text-lg mb-6">
+            <div className="flex items-center text-green-600 dark:text-green-300 font-medium text-lg mb-6">
             <CurrencyDollarIcon className="h-5 w-5 mr-2" />
             {post.reward} CollabPoints
           </div>
@@ -223,7 +223,7 @@ const BinPostDetail: React.FC = () => {
           {post.tags.map((tag) => (
             <span
               key={tag}
-              className="px-3 py-1 bg-secondary-100 text-secondary-700 text-sm rounded-full"
+              className="px-3 py-1 bg-secondary-100 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] text-sm rounded-full"
             >
               #{tag}
             </span>
@@ -231,16 +231,16 @@ const BinPostDetail: React.FC = () => {
         </div>
 
         {/* Metadata Footer - Clean Single Row Layout */}
-        <div className="border-t border-secondary-200 pt-4 mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-secondary-500">
+        <div className="border-t border-secondary-200 dark:border-[var(--border-color)] pt-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
             {/* Left Side - Dates and Status */}
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center">
-                <ClockIcon className="h-4 w-4 mr-2 text-secondary-400" />
+                <ClockIcon className="h-4 w-4 mr-2 text-secondary-400 dark:text-[var(--text-muted)]" />
                 <span>Created {formatDate(post.createdAt)}</span>
               </div>
               <div className="flex items-center">
-                <TrashIcon className="h-4 w-4 mr-2 text-secondary-400" />
+                <TrashIcon className="h-4 w-4 mr-2 text-secondary-400 dark:text-[var(--text-muted)]" />
                 <span>Deleted {formatDate(post.deletedAt)}</span>
               </div>
               <div className={`flex items-center font-medium ${getDaysRemainingColor(post.remainingDays)}`}>
@@ -252,15 +252,15 @@ const BinPostDetail: React.FC = () => {
             {/* Right Side - Stats */}
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center">
-                <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2 text-secondary-400" />
+                <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2 text-secondary-400 dark:text-[var(--text-muted)]" />
                 <span>{post.commentCount} comments</span>
               </div>
               <div className="flex items-center">
-                <UserGroupIcon className="h-4 w-4 mr-2 text-secondary-400" />
+                <UserGroupIcon className="h-4 w-4 mr-2 text-secondary-400 dark:text-[var(--text-muted)]" />
                 <span>{post.collaborators.length} collaborators</span>
               </div>
               <div className="flex items-center">
-                <HeartIcon className="h-4 w-4 mr-2 text-secondary-400" />
+                <HeartIcon className="h-4 w-4 mr-2 text-secondary-400 dark:text-[var(--text-muted)]" />
                 <span>{post.upvoteCount} upvotes</span>
               </div>
             </div>
@@ -287,11 +287,11 @@ const BinPostDetail: React.FC = () => {
 
       {/* Comments Section */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-secondary-900 mb-4">Comments</h3>
+        <h3 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Comments</h3>
         
         <div className="space-y-4">
           {post.comments.map((comment) => (
-            <div key={comment._id} className="border-l-2 border-secondary-200 pl-4">
+            <div key={comment._id} className="border-l-2 border-secondary-200 dark:border-[var(--border-color)] pl-4">
               <div className="flex space-x-3">
                 <img
                   src={comment.author.profilePicture || '/default-avatar.png'}
@@ -301,15 +301,15 @@ const BinPostDetail: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center space-x-2">
-                      <span className="font-medium text-secondary-900">
+                      <span className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">
                         {comment.author.name}
                       </span>
-                      <span className="text-xs text-secondary-500">
+                      <span className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                         {formatDate(comment.createdAt)}
                       </span>
                     </div>
                   </div>
-                  <p className="text-secondary-600 mb-2">{comment.content}</p>
+                  <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-2">{comment.content}</p>
                   
                   {/* Replies */}
                   {comment.replies && comment.replies.length > 0 && (
@@ -323,14 +323,14 @@ const BinPostDetail: React.FC = () => {
                           />
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium text-secondary-900 text-sm">
+                              <span className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm">
                                 {reply.author.name}
                               </span>
-                              <span className="text-xs text-secondary-500">
+                              <span className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                                 {formatDate(reply.createdAt)}
                               </span>
                             </div>
-                            <p className="text-secondary-600 text-sm">{reply.content}</p>
+                            <p className="text-secondary-600 dark:text-[var(--text-secondary)] text-sm">{reply.content}</p>
                           </div>
                         </div>
                       ))}
@@ -342,7 +342,7 @@ const BinPostDetail: React.FC = () => {
           ))}
           
           {post.comments.length === 0 && (
-            <p className="text-secondary-500 text-center py-4">
+            <p className="text-secondary-500 dark:text-[var(--text-secondary)] text-center py-4">
               No comments on this deleted post.
             </p>
           )}
@@ -352,11 +352,11 @@ const BinPostDetail: React.FC = () => {
       {/* Restore Confirmation Dialog */}
       {showRestoreConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4 border border-secondary-200 dark:border-[var(--border-color)]">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Restore Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to restore this post? It will be moved back to the main feed.
             </p>
             <div className="flex space-x-3">
@@ -369,7 +369,7 @@ const BinPostDetail: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowRestoreConfirm(false)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>
@@ -381,11 +381,11 @@ const BinPostDetail: React.FC = () => {
       {/* Permanent Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4 border border-secondary-200 dark:border-[var(--border-color)]">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Permanently Delete Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to permanently delete this post? This action cannot be undone.
             </p>
             <div className="flex space-x-3">
@@ -398,7 +398,7 @@ const BinPostDetail: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>

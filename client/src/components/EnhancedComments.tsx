@@ -163,7 +163,7 @@ const ReplyItem: React.FC<ReplyItemProps> = ({ reply, commentId, postId, onComme
   const marginClass = maxIndentation ? 'ml-0' : `ml-${Math.min(level * 6, 12)}`;
 
   return (
-    <div id={`reply-${reply._id}`} className={`${marginClass} ${!maxIndentation ? 'border-l border-gray-200 pl-4' : ''} py-3`}>
+    <div id={`reply-${reply._id}`} className={`${marginClass} ${!maxIndentation ? 'border-l border-gray-200 dark:border-[var(--border-color)] pl-4' : ''} py-3`}>
       <div className="flex space-x-3">
         {authorId ? (
           <UserHoverCard userId={authorId}>
@@ -186,25 +186,25 @@ const ReplyItem: React.FC<ReplyItemProps> = ({ reply, commentId, postId, onComme
               <UserHoverCard userId={authorId}>
                 <Link 
                   to={`/app/profile/${authorId}`}
-                  className="font-medium text-secondary-900 text-sm hover:text-primary-600 transition-colors duration-200"
+                  className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors duration-200"
                 >
                   {authorName}
                 </Link>
               </UserHoverCard>
             ) : (
-              <span className="font-medium text-secondary-900 text-sm">{authorName}</span>
+              <span className="font-medium text-secondary-900 dark:text-[var(--text-primary)] text-sm">{authorName}</span>
             )}
             {reply.replyTo && (
-              <span className="text-xs text-secondary-400">
+              <span className="text-xs text-secondary-400 dark:text-[var(--text-secondary)]">
                 • replied to {reply.replyTo.userName}
               </span>
             )}
-            <span className="text-xs text-secondary-500">
+            <span className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
               {formatDate(reply.createdAt)}
             </span>
           </div>
           
-          <p className="text-secondary-700 text-sm mb-2 break-words">{reply.content}</p>
+          <p className="text-secondary-700 dark:text-[var(--text-primary)] text-sm mb-2 break-words">{reply.content}</p>
           
           <div className="flex items-center space-x-4">
             {/* Upvote Button */}
@@ -229,7 +229,7 @@ const ReplyItem: React.FC<ReplyItemProps> = ({ reply, commentId, postId, onComme
             {level < 3 && (
               <button
                 onClick={() => setReplyingTo(replyingTo === reply._id ? null : reply._id)}
-                className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+                className="text-xs text-primary-600 dark:text-[var(--link-color)] hover:text-primary-700 dark:hover:text-[var(--link-color)]/80 font-medium transition-colors duration-200"
               >
                 Reply
               </button>
@@ -243,7 +243,7 @@ const ReplyItem: React.FC<ReplyItemProps> = ({ reply, commentId, postId, onComme
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder={`Reply to ${authorName}...`}
-                className="w-full p-2 text-sm border border-secondary-300 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                className="w-full p-2 text-sm border border-secondary-300 dark:border-[var(--border-color)] rounded-md bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] focus:ring-1 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] focus:border-primary-500 dark:focus:border-[var(--link-color)] resize-none"
                 rows={2}
                 maxLength={300}
               />
@@ -258,7 +258,7 @@ const ReplyItem: React.FC<ReplyItemProps> = ({ reply, commentId, postId, onComme
                 <button
                   type="button"
                   onClick={() => setReplyingTo(null)}
-                  className="px-3 py-1 text-xs bg-secondary-200 text-secondary-700 rounded-md hover:bg-secondary-300 transition-colors duration-200"
+                  className="px-3 py-1 text-xs bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors duration-200"
                 >
                   Cancel
                 </button>
@@ -342,7 +342,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
   };
 
   return (
-    <div id={`comment-${comment._id}`} className="py-4 border-b border-secondary-100 last:border-b-0">
+    <div id={`comment-${comment._id}`} className="py-4 border-b border-secondary-100 dark:border-[var(--border-color)] last:border-b-0">
       <div className="flex space-x-3">
         {authorId ? (
           <UserHoverCard userId={authorId}>
@@ -365,20 +365,20 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
               <UserHoverCard userId={authorId}>
                 <Link 
                   to={`/app/profile/${authorId}`}
-                  className="font-semibold text-secondary-900 hover:text-primary-600 transition-colors duration-200"
+                  className="font-semibold text-secondary-900 dark:text-[var(--text-primary)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors duration-200"
                 >
                   {authorName}
                 </Link>
               </UserHoverCard>
             ) : (
-              <span className="font-semibold text-secondary-900">{authorName}</span>
+              <span className="font-semibold text-secondary-900 dark:text-[var(--text-primary)]">{authorName}</span>
             )}
-            <span className="text-sm text-secondary-500">
+            <span className="text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
               {formatDate(comment.createdAt)}
             </span>
           </div>
           
-          <p className="text-secondary-700 mb-3 break-words">{comment.content}</p>
+          <p className="text-secondary-700 dark:text-[var(--text-primary)] mb-3 break-words">{comment.content}</p>
           
           <div className="flex items-center space-x-4 mb-3">
             {/* Upvote Button */}
@@ -387,8 +387,8 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
               disabled={upvoting}
             className={`flex items-center space-x-1 text-sm font-medium transition-colors duration-200 ${
                 localHasUpvoted
-                  ? 'text-primary-600 hover:text-primary-700'
-                  : 'text-secondary-500 hover:text-secondary-700'
+                  ? 'text-primary-600 dark:text-[var(--link-color)] hover:text-primary-700 dark:hover:text-[var(--link-color)]/80'
+                  : 'text-secondary-500 dark:text-[var(--text-secondary)] hover:text-secondary-700 dark:hover:text-[var(--text-primary)]'
               } disabled:opacity-50`}
             >
               {localHasUpvoted ? (
@@ -402,7 +402,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
             {/* Reply Button */}
             <button
               onClick={() => setReplyingTo(replyingTo === comment._id ? null : comment._id)}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+              className="text-sm text-primary-600 dark:text-[var(--link-color)] hover:text-primary-700 dark:hover:text-[var(--link-color)]/80 font-medium transition-colors duration-200"
             >
               Reply
             </button>
@@ -415,7 +415,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder={`Reply to ${authorName}...`}
-                className="w-full p-3 border border-secondary-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                className="w-full p-3 border border-secondary-300 dark:border-[var(--border-color)] rounded-lg bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] focus:ring-1 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] focus:border-primary-500 dark:focus:border-[var(--link-color)] resize-none"
                 rows={3}
                 maxLength={300}
               />
@@ -430,7 +430,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, postId, onCommentUpd
                 <button
                   type="button"
                   onClick={() => setReplyingTo(null)}
-                  className="px-4 py-2 text-sm bg-secondary-200 text-secondary-700 rounded-lg hover:bg-secondary-300 transition-colors duration-200"
+                  className="px-4 py-2 text-sm bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] rounded-lg hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors duration-200"
                 >
                   Cancel
                 </button>
@@ -508,7 +508,7 @@ const EnhancedComments: React.FC<EnhancedCommentsProps> = ({ postId, comments, o
         ))
       ) : (
         <div className="text-center py-8">
-          <p className="text-secondary-500">No comments yet. Be the first to comment!</p>
+          <p className="text-secondary-500 dark:text-[var(--text-secondary)]">No comments yet. Be the first to comment!</p>
         </div>
       )}
     </div>

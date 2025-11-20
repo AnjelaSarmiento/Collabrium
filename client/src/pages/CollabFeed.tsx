@@ -239,8 +239,8 @@ const CollabFeed: React.FC = () => {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-secondary-900">CollabFeed</h1>
-            <p className="mt-2 text-secondary-600">
+            <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)]">CollabFeed</h1>
+            <p className="mt-2 text-secondary-600 dark:text-[var(--text-secondary)]">
               Discover collaboration opportunities and paid tasks
             </p>
           </div>
@@ -254,11 +254,11 @@ const CollabFeed: React.FC = () => {
         </div>
 
         {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
-                <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400" />
+                <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400 dark:text-[var(--icon-color)]" />
                 <input
                   type="text"
                   placeholder="Search posts..."
@@ -308,7 +308,7 @@ const CollabFeed: React.FC = () => {
       </div>
 
       {/* Posts Grid - Improved Responsive Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
         {posts.map((post) => {
           // Skip posts with null authors (deleted users)
           if (!post.author) {
@@ -318,50 +318,47 @@ const CollabFeed: React.FC = () => {
           return (
             <div
               key={post._id}
-              className="bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 hover:scale-[1.02] transition-all duration-200 overflow-hidden group cursor-pointer w-full max-w-sm mx-auto md:max-w-none md:mx-0 relative"
+              className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-gray-100 dark:border-[var(--border-color)] hover:shadow-lg hover:border-blue-200 dark:hover:border-[var(--link-color)] hover:scale-[1.02] transition-all duration-200 overflow-hidden group cursor-pointer w-full max-w-sm mx-auto md:max-w-none md:mx-0 relative"
             >
               {/* Header - Minimal */}
               <div className="p-4 pb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <div className="flex items-center gap-2 min-w-0 flex-1 relative z-[50]" onClick={(e) => e.stopPropagation()}>
-                      <img
-                        src={getProfileImageUrl(post.author?.profilePicture) || '/default-avatar.png'}
-                        alt={post.author?.name || 'Unknown User'}
-                        className="h-8 w-8 rounded-full flex-shrink-0 cursor-pointer"
-                        onClick={() => window.location.href = `/app/profile/${post.author!._id}`}
-                      />
-                      <span
-                        onClick={(e) => { e.stopPropagation(); window.location.href = `/app/profile/${post.author!._id}`; }}
-                        className="text-sm font-medium text-gray-700 hover:text-primary-600 transition-colors truncate cursor-pointer"
-                      >
-                        {post.author!.name}
-                      </span>
-                    </div>
-                  {/* Presence indicators are hidden in feed to reduce noise */}
-                </div>
-                
-                {/* Badges and Actions */}
-                <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                    <img
+                      src={getProfileImageUrl(post.author?.profilePicture) || '/default-avatar.png'}
+                      alt={post.author?.name || 'Unknown User'}
+                      className="h-8 w-8 rounded-full flex-shrink-0 cursor-pointer"
+                      onClick={() => window.location.href = `/app/profile/${post.author!._id}`}
+                    />
+                    <span
+                      onClick={(e) => { e.stopPropagation(); window.location.href = `/app/profile/${post.author!._id}`; }}
+                      className="text-sm font-medium text-gray-700 dark:text-[var(--text-primary)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors truncate cursor-pointer"
+                    >
+                      {post.author!.name}
+                    </span>
+                  </div>
+                  
+                  {/* Badges and Actions */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                   {/* Post Type Badge */}
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-md ${
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-md border ${
                     post.type === 'Paid Task'
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700'
+                      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700'
                   }`}>
                     {post.type === 'Paid Task' ? 'Paid' : 'Free'}
                   </span>
                   
                   {/* Urgent Badge */}
                   {post.isUrgent && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 border border-amber-200">
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700">
                       ⚡ Urgent
                     </span>
                   )}
                   
                   {/* Reward Amount */}
                   {post.reward && (
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700">
                       🪙 {post.reward} CP
                     </span>
                   )}
@@ -372,7 +369,7 @@ const CollabFeed: React.FC = () => {
                     <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
                       <Link
                         to={`/app/feed/edit/${post._id}`}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        className="p-1 text-gray-400 dark:text-[var(--icon-color)] hover:text-blue-600 dark:hover:text-[var(--link-color)] transition-colors"
                         title="Edit post"
                       >
                         <PencilIcon className="h-3 w-3" />
@@ -382,31 +379,31 @@ const CollabFeed: React.FC = () => {
                           e.stopPropagation();
                           setShowDeleteConfirm(post._id);
                         }}
-                        className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1 text-gray-400 dark:text-[var(--icon-color)] hover:text-red-600 transition-colors"
                         title="Delete post"
                       >
                         <TrashIcon className="h-3 w-3" />
                       </button>
                     </div>
                   )}
+                  </div>
                 </div>
               </div>
-            </div>
 
             {/* Content - Essential Only - Make entire card clickable */}
             <Link to={`/app/feed/${post._id}`}>
             <div className="px-4 pb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 break-words group-hover:text-blue-800 transition-colors">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-[var(--text-primary)] mb-2 line-clamp-2 break-words group-hover:text-blue-800 dark:group-hover:text-[var(--link-color)] transition-colors">
                 {post.title}
               </h3>
               
               {/* Description with subtle fade */}
               <div className="relative overflow-hidden">
-                <p className="text-gray-600 text-sm leading-relaxed line-clamp-2 break-words break-all">
+                <p className="text-gray-600 dark:text-[var(--text-secondary)] text-sm leading-relaxed line-clamp-2 break-words break-all">
                   {post.description}
                 </p>
-                <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white via-white to-transparent pl-6">
-                  <span className="text-blue-800 text-sm font-medium">
+                <div className="absolute bottom-0 right-0 bg-gradient-to-l from-white via-white to-transparent dark:from-[var(--bg-card)] dark:via-[var(--bg-card)] dark:to-transparent pl-6">
+                  <span className="text-blue-800 dark:text-[var(--link-color)] text-sm font-medium">
                     ...
                   </span>
                 </div>
@@ -417,13 +414,13 @@ const CollabFeed: React.FC = () => {
                 {post.tags.slice(0, 2).map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-sm"
+                    className="px-2 py-0.5 bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-600 dark:text-[var(--text-secondary)] text-xs rounded-sm"
                   >
                     #{tag}
                   </span>
                 ))}
                 {post.tags.length > 2 && (
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-sm">
+                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-500 dark:text-[var(--text-muted)] text-xs rounded-sm">
                     +{post.tags.length - 2}
                   </span>
                 )}
@@ -441,8 +438,8 @@ const CollabFeed: React.FC = () => {
               }}
               className={`absolute top-4 right-4 p-2 rounded-full shadow-sm z-10 transition-all duration-200 ${
                 savedPosts.has(post._id)
-                  ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
-                  : 'text-gray-400 bg-white/80 hover:text-blue-600 hover:bg-white'
+                  ? 'text-blue-600 dark:text-[var(--link-color)] bg-blue-50 dark:bg-[var(--bg-hover)] hover:bg-blue-100 dark:hover:bg-[var(--bg-panel)]'
+                  : 'text-gray-400 dark:text-[var(--icon-color)] bg-white/80 dark:bg-[var(--bg-card)]/80 hover:text-blue-600 dark:hover:text-[var(--link-color)] hover:bg-white dark:hover:bg-[var(--bg-card)]'
               }`}
               title={savedPosts.has(post._id) ? 'Remove from saved' : 'Save post'}
             >
@@ -463,13 +460,13 @@ const CollabFeed: React.FC = () => {
 
       {posts.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-secondary-400 mb-4">
+          <div className="text-secondary-400 dark:text-[var(--text-muted)] mb-4">
             <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto" />
           </div>
-          <h3 className="text-lg font-medium text-secondary-900 mb-2">
+          <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-2">
             No posts found
           </h3>
-          <p className="text-secondary-500 mb-6">
+          <p className="text-secondary-500 dark:text-[var(--text-secondary)] mb-6">
             Try adjusting your search criteria or create the first post!
           </p>
           <Link to="/app/feed/create" className="btn-primary">
@@ -481,11 +478,11 @@ const CollabFeed: React.FC = () => {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Delete Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to delete this post? It will be moved to your bin and can be restored within 30 days.
             </p>
             <div className="flex space-x-3">
@@ -497,7 +494,7 @@ const CollabFeed: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>

@@ -194,9 +194,14 @@ postSchema.virtual('approvedCollaboratorCount').get(function() {
   return Array.isArray(this.collaborators) ? this.collaborators.length : 0;
 });
 
-// Virtual for comment count
+// Virtual for comment count (includes both top-level comments and all replies)
 postSchema.virtual('commentCount').get(function() {
-  return this.comments.length;
+  if (!Array.isArray(this.comments)) return 0;
+  const topLevelCount = this.comments.length;
+  const repliesCount = this.comments.reduce((total, comment) => {
+    return total + (Array.isArray(comment.replies) ? comment.replies.length : 0);
+  }, 0);
+  return topLevelCount + repliesCount;
 });
 
 // Virtual for remaining days until permanent deletion

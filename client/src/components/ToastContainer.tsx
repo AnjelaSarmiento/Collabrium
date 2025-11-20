@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useNotification, NotificationType } from '../contexts/NotificationContext';
 import { getProfileImageUrl } from '../utils/image';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { getNotificationTypeLabel } from '../utils/notificationLabels';
 import axios from 'axios';
 
 /**
@@ -36,7 +35,7 @@ const ToastContainer: React.FC = () => {
   };
 
   const renderTypeBadge = (type: string) => {
-    let bgColor = 'bg-gray-100';
+    let bgColor = 'bg-gray-100 dark:bg-[var(--bg-hover)]';
     let imageSrc: string | null = null;
     switch (type) {
       case 'comment_added':
@@ -71,7 +70,7 @@ const ToastContainer: React.FC = () => {
     if (!imageSrc) return null;
     return (
       <span
-        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white`}
+        className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full ${bgColor} p-1 ring-1 ring-white dark:ring-[var(--bg-card)]`}
         aria-hidden="true"
       >
         <img src={imageSrc} alt="" className="h-3 w-3 object-contain" />
@@ -314,7 +313,7 @@ const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none">
+    <div className="fixed bottom-4 left-4 z-50 space-y-2 pointer-events-none">
       {toasts.map((toast) => {
         const isInteractive = toast.type === 'connection_request';
         // connection_accepted is not clickable (read-only)
@@ -336,7 +335,7 @@ const ToastContainer: React.FC = () => {
               }
               // connection_accepted is non-clickable - do nothing
             }}
-            className={`bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[300px] max-w-[400px] transition-all pointer-events-auto animate-in slide-in-from-right-5 duration-300 ${
+            className={`bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-lg border border-gray-200 dark:border-[var(--border-color)] p-3 min-w-[300px] max-w-[400px] transition-all pointer-events-auto animate-in slide-in-from-right-5 duration-300 ${
               isClickable ? 'cursor-pointer hover:shadow-xl' : ''
             } ${hoveredToast === toast.id ? 'shadow-xl' : ''}`}
             role={isClickable ? 'button' : undefined}
@@ -351,13 +350,7 @@ const ToastContainer: React.FC = () => {
             onFocus={() => handleMouseEnter(toast.id)}
             onBlur={() => handleMouseLeave(toast.id)}
           >
-            {/* Type label - top-left corner */}
-            <div className="absolute top-2 left-2 z-10">
-              <span className="text-[10px] font-semibold text-secondary-500 uppercase tracking-wide bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
-                {getNotificationTypeLabel(toast.type)}
-              </span>
-            </div>
-            <div className="flex items-start gap-3 mt-5">
+            <div className="flex items-start gap-3">
               <div className="relative flex-shrink-0">
               <img
                 src={getProfileImageUrl(toast.actor.profilePicture) || '/default-avatar.png'}
@@ -370,7 +363,7 @@ const ToastContainer: React.FC = () => {
                 {toast.type === 'message' ? (
                   <div className="text-sm text-gray-900">
                     <div className="font-medium">{toast.actor.name}</div>
-                    <div className="mt-1 text-gray-600 relative">
+                    <div className="mt-1 text-gray-600 dark:text-[var(--text-secondary)] relative">
                   {/* Scrollable message container - only scrollable when hovered and exceeds max height */}
                   <div
                     ref={(el) => {
@@ -385,7 +378,7 @@ const ToastContainer: React.FC = () => {
                         messageRefs.current.delete(toast.id);
                       }
                     }}
-                    className={`text-sm text-gray-600 transition-[max-height] duration-200 ease-in-out relative ${
+                    className={`text-sm text-gray-600 dark:text-[var(--text-secondary)] transition-[max-height] duration-200 ease-in-out relative ${
                       // Always cap initial height to avoid flash
                       'max-h-32 overflow-hidden'
                     } ${
@@ -460,13 +453,13 @@ const ToastContainer: React.FC = () => {
                   
                   {/* Subtle hint when not hovered */}
                   {scrollableToasts.has(toast.id) && hoveredToast !== toast.id && (
-                    <span className="text-xs text-gray-400 ml-1 absolute right-0 bottom-0" aria-hidden="true" title="Hover to scroll and read full message">…</span>
+                    <span className="text-xs text-gray-400 dark:text-[var(--text-muted)] ml-1 absolute right-0 bottom-0" aria-hidden="true" title="Hover to scroll and read full message">…</span>
                   )}
                 </div>
                   </div>
                 ) : (
                   <div className="relative">
-                    <p className="text-sm text-gray-900">
+                    <p className="text-sm text-gray-900 dark:text-[var(--text-primary)]">
                       {renderMessage(toast.message, toast.actor.name)}
                     </p>
                   </div>
@@ -491,7 +484,7 @@ const ToastContainer: React.FC = () => {
                         e.preventDefault();
                         handleDecline(toast);
                       }}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-[var(--text-primary)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-md hover:bg-gray-200 dark:hover:bg-[var(--bg-panel)] transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-[var(--link-color)]"
                     >
                       Decline
                     </button>
@@ -503,10 +496,10 @@ const ToastContainer: React.FC = () => {
                   e.stopPropagation();
                   removeToast(toast.id);
                 }}
-                className="p-1 hover:bg-gray-100 rounded-full flex-shrink-0 transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-full flex-shrink-0 transition-colors"
                 aria-label="Close notification"
               >
-                <XMarkIcon className="h-4 w-4 text-gray-500" />
+                <XMarkIcon className="h-4 w-4 text-gray-500 dark:text-[var(--icon-color)]" />
               </button>
             </div>
           </div>

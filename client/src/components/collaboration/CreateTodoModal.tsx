@@ -39,12 +39,12 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ roomId, conversationI
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="flex items-center justify-between p-4 border-b border-secondary-200">
-          <h3 className="text-lg font-semibold text-secondary-900">Add To-do</h3>
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-xl border border-secondary-200 dark:border-[var(--border-color)] max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-4 border-b border-secondary-200 dark:border-[var(--border-color)]">
+          <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)]">Add To-do</h3>
           <button
             onClick={onClose}
-            className="text-secondary-400 hover:text-secondary-600"
+            className="text-secondary-400 hover:text-secondary-600 dark:text-[var(--text-muted)] dark:hover:text-[var(--text-secondary)]"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -52,7 +52,7 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ roomId, conversationI
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-1">
+            <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-1">
               Title *
             </label>
             <input
@@ -66,7 +66,7 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ roomId, conversationI
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-1">
+            <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-1">
               Description
             </label>
             <textarea

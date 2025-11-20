@@ -152,7 +152,7 @@ const BinPage: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/app/feed"
-            className="inline-flex items-center text-secondary-600 hover:text-secondary-900"
+            className="inline-flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)]"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back to CollabFeed
@@ -162,11 +162,11 @@ const BinPage: React.FC = () => {
         {/* Main Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-secondary-900 flex items-center">
+            <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)] flex items-center">
               <TrashIcon className="h-8 w-8 mr-3 text-red-500" />
               Bin
             </h1>
-            <p className="mt-2 text-secondary-600">
+            <p className="mt-2 text-secondary-600 dark:text-[var(--text-secondary)]">
               Manage your deleted posts. Posts are automatically deleted after 30 days.
             </p>
           </div>
@@ -178,9 +178,9 @@ const BinPage: React.FC = () => {
                   type="checkbox"
                   checked={selectedPosts.length === posts.length && posts.length > 0}
                   onChange={toggleSelectAll}
-                  className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-secondary-300 dark:border-[var(--border-color)] text-[#2563EB] focus:ring-primary-500 dark:focus:ring-[var(--link-color)] bg-white dark:bg-[var(--bg-card)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors"
                 />
-                <span className="ml-2 text-sm text-secondary-600">Select All</span>
+                <span className="ml-2 text-sm text-secondary-600 dark:text-[var(--text-secondary)]">Select All</span>
               </label>
               
               {selectedPosts.length > 0 && (
@@ -200,13 +200,13 @@ const BinPage: React.FC = () => {
       {/* Posts List */}
       {posts.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-secondary-400 mb-4">
+          <div className="text-secondary-400 dark:text-[var(--text-muted)] mb-4">
             <TrashIcon className="h-16 w-16 mx-auto" />
           </div>
-          <h3 className="text-lg font-medium text-secondary-900 mb-2">
+          <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-2">
             Your bin is empty
           </h3>
-          <p className="text-secondary-500 mb-6">
+          <p className="text-secondary-500 dark:text-[var(--text-secondary)] mb-6">
             Deleted posts will appear here and can be restored within 30 days.
           </p>
           <Link to="/app/feed" className="btn-primary">
@@ -223,29 +223,29 @@ const BinPage: React.FC = () => {
                     type="checkbox"
                     checked={selectedPosts.includes(post._id)}
                     onChange={() => togglePostSelection(post._id)}
-                    className="mt-1 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+                    className="mt-1 rounded border-secondary-300 dark:border-[var(--border-color)] text-[#2563EB] focus:ring-primary-500 dark:focus:ring-[var(--link-color)] bg-white dark:bg-[var(--bg-card)] hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors"
                   />
                   
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-secondary-900 break-words">
+                      <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] break-words">
                         {post.title}
                       </h3>
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           post.type === 'Paid Task'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
                         }`}>
                           {post.type}
                         </span>
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200">
                           Deleted
                         </span>
                       </div>
                     </div>
                     
-                    <p className="text-secondary-600 text-sm mb-3 line-clamp-2 break-words break-all overflow-hidden">
+                    <p className="text-secondary-600 dark:text-[var(--text-secondary)] text-sm mb-3 line-clamp-2 break-words break-all overflow-hidden">
                       {post.description}
                     </p>
                     
@@ -253,19 +253,19 @@ const BinPage: React.FC = () => {
                       {post.tags.slice(0, 3).map((tag) => (
                         <span
                           key={tag}
-                          className="px-2 py-1 bg-secondary-100 text-secondary-700 text-xs rounded-full"
+                          className="px-2 py-1 bg-secondary-100 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] text-xs rounded-full"
                         >
                           #{tag}
                         </span>
                       ))}
                       {post.tags.length > 3 && (
-                        <span className="px-2 py-1 bg-secondary-100 text-secondary-700 text-xs rounded-full">
+                        <span className="px-2 py-1 bg-secondary-100 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] text-xs rounded-full">
                           +{post.tags.length - 3} more
                         </span>
                       )}
                     </div>
                     
-                    <div className="flex items-center justify-between text-sm text-secondary-500">
+                    <div className="flex items-center justify-between text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center">
                           <ClockIcon className="h-4 w-4 mr-1" />
@@ -288,21 +288,21 @@ const BinPage: React.FC = () => {
                 <div className="flex items-center space-x-2 ml-4">
                   <Link
                     to={`/app/bin/${post._id}`}
-                    className="p-2 text-secondary-400 hover:text-primary-600 transition-colors"
+                    className="p-2 text-secondary-400 dark:text-[var(--icon-color)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors"
                     title="View details"
                   >
                     <EyeIcon className="h-5 w-5" />
                   </Link>
                   <button
                     onClick={() => setShowRestoreConfirm(post._id)}
-                    className="p-2 text-secondary-400 hover:text-green-600 transition-colors"
+                    className="p-2 text-secondary-400 dark:text-[var(--icon-color)] hover:text-green-600 transition-colors"
                     title="Restore post"
                   >
                     <ArrowUturnLeftIcon className="h-5 w-5" />
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(post._id)}
-                    className="p-2 text-secondary-400 hover:text-red-600 transition-colors"
+                    className="p-2 text-secondary-400 dark:text-[var(--icon-color)] hover:text-red-600 transition-colors"
                     title="Permanently delete"
                   >
                     <XMarkIcon className="h-5 w-5" />
@@ -317,11 +317,11 @@ const BinPage: React.FC = () => {
       {/* Restore Confirmation Dialog */}
       {showRestoreConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Restore Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to restore this post? It will be moved back to the main feed.
             </p>
             <div className="flex space-x-3">
@@ -334,7 +334,7 @@ const BinPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowRestoreConfirm(null)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>
@@ -346,11 +346,11 @@ const BinPage: React.FC = () => {
       {/* Permanent Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Permanently Delete Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to permanently delete this post? This action cannot be undone.
             </p>
             <div className="flex space-x-3">
@@ -363,7 +363,7 @@ const BinPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>
@@ -375,11 +375,11 @@ const BinPage: React.FC = () => {
       {/* Bulk Delete Confirmation Dialog */}
       {showBulkDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Permanently Delete Posts
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to permanently delete {selectedPosts.length} selected posts? This action cannot be undone.
             </p>
             <div className="flex space-x-3">
@@ -392,7 +392,7 @@ const BinPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowBulkDeleteConfirm(false)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>

@@ -200,7 +200,7 @@ const Wallet: React.FC = () => {
       case 'Tip':
         return 'text-blue-600';
       default:
-        return 'text-gray-600';
+        return 'text-gray-600 dark:text-[var(--icon-color)]';
     }
   };
 
@@ -225,54 +225,54 @@ const Wallet: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-secondary-900">Wallet</h1>
-        <p className="text-secondary-600 mt-2">Manage your CollabPoints and transactions</p>
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)]">Wallet</h1>
+        <p className="text-secondary-600 dark:text-[var(--text-secondary)] mt-2">Manage your CollabPoints and transactions</p>
       </div>
 
       {/* Wallet Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <CurrencyDollarIcon className="h-8 w-8 text-primary-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Current Balance</p>
-              <p className="text-2xl font-semibold text-secondary-900">
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Current Balance</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">
                 {wallet?.balance || 0} CP
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <ArrowUpIcon className="h-8 w-8 text-green-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Total Earned</p>
-              <p className="text-2xl font-semibold text-secondary-900">
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Total Earned</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">
                 {wallet?.totalEarned || 0} CP
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <ArrowDownIcon className="h-8 w-8 text-red-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">Total Spent</p>
-              <p className="text-2xl font-semibold text-secondary-900">
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">Total Spent</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">
                 {wallet?.totalSpent || 0} CP
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)] p-6">
           <div className="flex items-center">
             <ClockIcon className="h-8 w-8 text-yellow-600" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-secondary-500">In Escrow</p>
-              <p className="text-2xl font-semibold text-secondary-900">
+              <p className="text-sm font-medium text-secondary-500 dark:text-[var(--text-secondary)]">In Escrow</p>
+              <p className="text-2xl font-semibold text-secondary-900 dark:text-[var(--text-primary)]">
                 {wallet?.escrowSummary?.totalHeld || 0} CP
               </p>
             </div>
@@ -281,8 +281,8 @@ const Wallet: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow-sm border border-secondary-200">
-        <div className="border-b border-secondary-200">
+      <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-sm border border-secondary-200 dark:border-[var(--border-color)]">
+        <div className="border-b border-secondary-200 dark:border-[var(--border-color)]">
           <nav className="flex space-x-8 px-6">
             {[
               { id: 'overview', name: 'Overview' },
@@ -296,7 +296,7 @@ const Wallet: React.FC = () => {
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300'
+                    : 'border-transparent text-secondary-500 dark:text-[var(--text-secondary)] hover:text-secondary-700 dark:hover:text-[var(--text-primary)] hover:border-secondary-300 dark:hover:border-[var(--border-hover)]'
                 }`}
               >
                 {tab.name}
@@ -310,17 +310,17 @@ const Wallet: React.FC = () => {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-medium text-secondary-900 mb-4">Recent Activity</h3>
+                <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Recent Activity</h3>
                 <div className="space-y-3">
                   {transactions.slice(0, 5).map((transaction) => (
-                    <div key={transaction._id} className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg">
+                    <div key={transaction._id} className="flex items-center justify-between p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
                       <div className="flex items-center">
                         {getTransactionIcon(transaction.type)}
                         <div className="ml-3">
-                          <p className="text-sm font-medium text-secondary-900">
+                          <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">
                             {transaction.description}
                           </p>
-                          <p className="text-xs text-secondary-500">
+                          <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                             {formatDate(transaction.createdAt)}
                           </p>
                         </div>
@@ -348,21 +348,21 @@ const Wallet: React.FC = () => {
           {/* Transactions Tab */}
           {activeTab === 'transactions' && (
             <div>
-              <h3 className="text-lg font-medium text-secondary-900 mb-4">Transaction History</h3>
+              <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Transaction History</h3>
               <div className="space-y-3">
                 {transactions.map((transaction) => (
-                  <div key={transaction._id} className="flex items-center justify-between p-4 bg-secondary-50 rounded-lg">
+                  <div key={transaction._id} className="flex items-center justify-between p-4 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg">
                     <div className="flex items-center">
                       {getTransactionIcon(transaction.type)}
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-secondary-900">
+                        <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">
                           {transaction.description}
                         </p>
-                        <p className="text-xs text-secondary-500">
+                        <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                           {formatDate(transaction.createdAt)}
                         </p>
                         {transaction.relatedUser && (
-                          <p className="text-xs text-secondary-500">
+                          <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                             with {transaction.relatedUser.name}
                           </p>
                         )}
@@ -374,10 +374,13 @@ const Wallet: React.FC = () => {
                         {transaction.amount} CP
                       </span>
                       <span className={`ml-3 px-2 py-1 text-xs rounded-full ${
-                        transaction.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                        transaction.status === 'Failed' ? 'bg-red-100 text-red-800' :
-                        transaction.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
+                        transaction.status === 'Completed'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                          : transaction.status === 'Failed'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                          : transaction.status === 'Pending'
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                          : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-800 dark:text-[var(--text-primary)]'
                       }`}>
                         {transaction.status}
                       </span>
@@ -391,10 +394,10 @@ const Wallet: React.FC = () => {
           {/* Transfer Tab */}
           {activeTab === 'transfer' && (
             <div>
-              <h3 className="text-lg font-medium text-secondary-900 mb-4">Transfer CollabPoints</h3>
+              <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Transfer CollabPoints</h3>
               <form onSubmit={handleTransfer} className="max-w-md space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                     Recipient Email
                   </label>
                   <input
@@ -407,7 +410,7 @@ const Wallet: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                     Amount
                   </label>
                   <input
@@ -422,7 +425,7 @@ const Wallet: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                     Description (Optional)
                   </label>
                   <input
@@ -443,10 +446,10 @@ const Wallet: React.FC = () => {
           {/* Purchase Tab */}
           {activeTab === 'purchase' && (
             <div>
-              <h3 className="text-lg font-medium text-secondary-900 mb-4">Purchase CollabPoints</h3>
+              <h3 className="text-lg font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">Purchase CollabPoints</h3>
               <form onSubmit={handlePurchase} className="max-w-md space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                     Amount (Minimum 10 CP)
                   </label>
                   <input
@@ -460,7 +463,7 @@ const Wallet: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-2">
                     Payment Method
                   </label>
                   <div className="relative" data-payment-dropdown>
@@ -490,7 +493,7 @@ const Wallet: React.FC = () => {
                     </button>
                     
                     {showPaymentDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-secondary-200 rounded-md shadow-lg">
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[var(--bg-card)] border border-secondary-200 dark:border-[var(--border-color)] rounded-md shadow-lg">
                         {paymentMethods.map((method) => (
                           <button
                             key={method.id}
@@ -505,8 +508,10 @@ const Wallet: React.FC = () => {
                               });
                               setShowPaymentDropdown(false);
                             }}
-                            className={`w-full px-4 py-3 text-left flex items-center hover:bg-primary-50 hover:text-primary-700 transition-colors ${
-                              purchaseForm.paymentMethod === method.id ? 'bg-primary-50 text-primary-700' : 'text-secondary-900'
+                            className={`w-full px-4 py-3 text-left flex items-center hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-[var(--bg-hover)] dark:hover:text-[var(--text-primary)] transition-colors ${
+                              purchaseForm.paymentMethod === method.id
+                                ? 'bg-primary-50 text-primary-700 dark:bg-[var(--bg-hover)] dark:text-[var(--text-primary)]'
+                                : 'text-secondary-900 dark:text-[var(--text-primary)]'
                             }`}
                           >
                             <span className={`mr-3 ${method.color}`}>
@@ -514,7 +519,7 @@ const Wallet: React.FC = () => {
                             </span>
                             <span className="font-medium">{method.name}</span>
                             {purchaseForm.paymentMethod === method.id && (
-                              <CheckCircleIcon className="h-5 w-5 text-primary-600 ml-auto" />
+                              <CheckCircleIcon className="h-5 w-5 text-primary-600 dark:text-[var(--link-color)] ml-auto" />
                             )}
                           </button>
                         ))}
@@ -522,8 +527,8 @@ const Wallet: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
                     <strong>Bonus:</strong> Get 10% bonus CollabPoints on every purchase!
                   </p>
                 </div>

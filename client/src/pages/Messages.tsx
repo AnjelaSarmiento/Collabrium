@@ -135,7 +135,9 @@ const Messages: React.FC = () => {
   // Track which read messages should show "Read" text (internal until clicked)
   const [readVisible, setReadVisible] = useState<Set<string>>(new Set()); // messageId -> isReadVisible
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingStopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const markReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fetchingConvosRef = useRef(false);
   const conversationsCacheRef = useRef<Record<string, Conversation>>({});
   const pendingReadTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -332,16 +334,6 @@ const Messages: React.FC = () => {
   }, [selectedConversation, navigate]);
 
   useEffect(() => {
-    // Instant scroll to bottom when new messages arrive (no smooth animation to avoid lag)
-    // Use requestAnimationFrame to defer scroll and prevent blocking UI
-    if (messages.length > 0) {
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      });
-    }
-  }, [messages.length]);
-
-  useEffect(() => {
     // Mark component mounted for visibility gating
     isMessagesMountedRef.current = true;
     // Listen for new messages
@@ -397,8 +389,10 @@ const Messages: React.FC = () => {
           });
         }
         
-        if (isMessagesMountedRef.current && document.visibilityState === 'visible' && selectedConversationIdRef.current) {
-        markAsRead(data.conversationId);
+        // Full message view: Auto-mark as read when scrolled to bottom and tab is visible
+        // Do not require input field to be focused (Facebook Messenger behavior)
+        if (isMessagesMountedRef.current && document.visibilityState === 'visible' && selectedConversationIdRef.current === data.conversationId) {
+          markAsReadIfScrolledToBottom(data.conversationId);
         }
         // Note: "Delivered" status is only set via the message:delivered event, not here
         // Don't fetchConversations() here to avoid overriding optimistic unreadCount: 0
@@ -1250,12 +1244,25 @@ const Messages: React.FC = () => {
 
           typingUserTimeoutsRef.current.set(incomingUserId, timeoutId);
         } else {
+          // Instead of immediately removing, set a delay before removing the typing indicator
           const existingTimeout = typingUserTimeoutsRef.current.get(incomingUserId);
           if (existingTimeout) {
             clearTimeout(existingTimeout);
-            typingUserTimeoutsRef.current.delete(incomingUserId);
           }
+          
+          // Set timeout to remove typing indicator after a delay
+          const timeoutId = setTimeout(() => {
           typingUsersRef.current.delete(incomingUserId);
+            typingUserTimeoutsRef.current.delete(incomingUserId);
+            const hasRemainingUsers = typingUsersRef.current.size > 0;
+            previousTypingStateRef.current.set(payload.conversationId, hasRemainingUsers);
+            if (!hasRemainingUsers) {
+              typingSoundPlayedRef.current.set(payload.conversationId, false);
+            }
+            updateTypingVisuals();
+          }, 1500); // 1.5 second delay before hiding typing indicator
+          
+          typingUserTimeoutsRef.current.set(incomingUserId, timeoutId);
         }
 
         const hasTypingUsers = typingUsersRef.current.size > 0;
@@ -1660,6 +1667,13 @@ const Messages: React.FC = () => {
             console.log(`[Messages] ⚠️ Conversation ${conversationId} not found in list, will be updated on next fetch`);
           }
         });
+        
+        // Calculate total unread count and dispatch event to update Navbar badge
+        const totalUnread = next.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+        window.dispatchEvent(new CustomEvent('messages:count-update', { 
+          detail: { totalUnread } 
+        }));
+        
         return next;
       });
     }
@@ -1680,7 +1694,7 @@ const Messages: React.FC = () => {
         // Preserve optimistic unreadCount: 0 for currently selected conversation
         setConversations(prev => {
           const currentConvId = selectedConversationIdRef.current;
-          return unique.map(conv => {
+          const updated = unique.map(conv => {
             // If this is the currently selected conversation and we optimistically set unreadCount to 0,
             // keep it at 0 instead of overriding with server value
             if (conv._id === currentConvId) {
@@ -1691,6 +1705,14 @@ const Messages: React.FC = () => {
             }
             return conv;
           });
+          
+          // Calculate total unread count and dispatch event to update Navbar badge
+          const totalUnread = updated.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+          window.dispatchEvent(new CustomEvent('messages:count-update', { 
+            detail: { totalUnread } 
+          }));
+          
+          return updated;
         });
       }
     } catch (error) {
@@ -2007,6 +2029,17 @@ const Messages: React.FC = () => {
     }
   };
 
+  // Check if user is scrolled to bottom (within 100px threshold)
+  const isScrolledToBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return false;
+    const container = messagesContainerRef.current;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    const threshold = 100; // 100px threshold
+    return scrollHeight - scrollTop - clientHeight <= threshold;
+  }, []);
+
   const markAsRead = async (conversationId: string) => {
     try {
       await axios.post(`/messages/conversations/${conversationId}/read`);
@@ -2017,6 +2050,51 @@ const Messages: React.FC = () => {
       console.error('Failed to mark as read:', error);
     }
   };
+
+  // Mark as read when scrolled to bottom and tab is visible (full view auto-mark)
+  const markAsReadIfScrolledToBottom = useCallback((conversationId: string) => {
+    if (!conversationId || !selectedConversationIdRef.current || selectedConversationIdRef.current !== conversationId) {
+      return;
+    }
+
+    // Only mark as read if:
+    // 1. Tab is visible
+    // 2. Window is focused
+    // 3. User is scrolled to bottom
+    const isTabVisible = document.visibilityState === 'visible';
+    const isWindowFocused = document.hasFocus ? document.hasFocus() : true;
+    const isAtBottom = isScrolledToBottom();
+
+    if (isTabVisible && isWindowFocused && isAtBottom) {
+      if (markReadTimeoutRef.current) {
+        clearTimeout(markReadTimeoutRef.current);
+      }
+      markReadTimeoutRef.current = setTimeout(async () => {
+        // Re-check conditions before marking as read
+        if (isScrolledToBottom() && document.visibilityState === 'visible' && selectedConversationIdRef.current === conversationId) {
+          await markAsRead(conversationId);
+        }
+        markReadTimeoutRef.current = null;
+      }, 200); // 200ms debounce
+    }
+  }, [isScrolledToBottom]);
+
+  useEffect(() => {
+    // Instant scroll to bottom when new messages arrive (no smooth animation to avoid lag)
+    // Use requestAnimationFrame to defer scroll and prevent blocking UI
+    if (messages.length > 0) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        // After scrolling, check if we should mark as read (full view auto-mark)
+        if (selectedConversation && document.visibilityState === 'visible') {
+          // Small delay to ensure scroll completes
+          setTimeout(() => {
+            markAsReadIfScrolledToBottom(selectedConversation._id);
+          }, 100);
+        }
+      });
+    }
+  }, [messages.length, selectedConversation, markAsReadIfScrolledToBottom]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2815,7 +2893,7 @@ const Messages: React.FC = () => {
         <React.Fragment key={message._id + '-' + message.createdAt}>
           {showDateDivider && (
             <div className="my-4 flex items-center justify-center">
-              <span className="px-3 py-1 text-xs text-gray-500 bg-gray-100 rounded-full">
+              <span className="px-3 py-1 text-xs text-gray-500 dark:text-[var(--text-muted)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-full">
                 {formatDayLabel(currentDate)}
               </span>
             </div>
@@ -2838,7 +2916,7 @@ const Messages: React.FC = () => {
               <div className="relative" style={{ minHeight: '36px' }}>
                 {/* Layout-stable bubble: fixed min dimensions prevent reflow during status updates */}
                 <div 
-                  className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 text-secondary-900'}`} 
+                  className={`rounded-lg px-3 py-2 max-w-full ${isOwn ? (isSending ? 'bg-[#3D61D4] animate-pulse text-white' : 'bg-[#3D61D4] text-white') : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-secondary-900 dark:text-[var(--text-primary)]'}`} 
                   style={{ 
                     minWidth: '64px',
                     minHeight: '36px',
@@ -2850,7 +2928,7 @@ const Messages: React.FC = () => {
                     {message.content}
                   </p>
                   {/* Timestamp under message content, aligned right */}
-                  <div className={`mt-1 text-[11px] ${isOwn ? 'text-primary-100' : 'text-gray-500'} text-right`}>
+                  <div className={`mt-1 text-[11px] ${isOwn ? 'text-primary-100' : 'text-gray-500 dark:text-[var(--text-muted)]'} text-right`}>
                     {formatClock(currentDate)}
                   </div>
                 </div>
@@ -2875,28 +2953,28 @@ const Messages: React.FC = () => {
   }, [renderedMessages, seenByCache, lastOwnIndex, stickyTimes, renderedStatus, messageStatus, messages, otherUserMemo, user?._id, readVisible, handleMessageClick, getHighestStatus, getStatusPriority]);
 
   return (
-    <div className="flex max-h-[700px] bg-gray-50" style={{ height: 'calc(100vh - 120px)' }}>
+    <div className="flex max-h-[700px] bg-gray-50 dark:bg-[var(--bg-page)]" style={{ height: 'calc(100vh - 120px)' }}>
       {/* Conversations List */}
-      <div className="w-full md:w-[340px] lg:w-[380px] bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-secondary-900 mb-4">Messages</h2>
+      <div className="w-full md:w-[340px] lg:w-[380px] bg-white dark:bg-[var(--bg-card)] border-r border-gray-200 dark:border-[var(--border-color)] flex flex-col">
+        <div className="p-4 border-b border-gray-200 dark:border-[var(--border-color)]">
+          <h2 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Messages</h2>
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-[var(--icon-color)]" />
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)]"
             />
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-gray-500">Loading...</div>
+            <div className="p-4 text-center text-gray-500 dark:text-[var(--text-muted)]">Loading...</div>
           ) : filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-gray-500 dark:text-[var(--text-muted)]">
               {searchTerm ? 'No conversations found' : 'No messages yet'}
             </div>
           ) : (
@@ -2908,10 +2986,14 @@ const Messages: React.FC = () => {
               // Room status badge color
               const getRoomStatusColor = (status?: string) => {
                 switch (status) {
-                  case 'Active': return 'bg-green-100 text-green-700';
-                  case 'Completed': return 'bg-gray-100 text-gray-700';
-                  case 'Cancelled': return 'bg-red-100 text-red-700';
-                  default: return 'bg-gray-100 text-gray-700';
+                  case 'Active':
+                    return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200';
+                  case 'Completed':
+                    return 'bg-gray-100 text-gray-700 dark:bg-[var(--bg-hover)] dark:text-[var(--text-secondary)]';
+                  case 'Cancelled':
+                    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200';
+                  default:
+                    return 'bg-gray-100 text-gray-700 dark:bg-[var(--bg-hover)] dark:text-[var(--text-secondary)]';
                 }
               };
 
@@ -2920,15 +3002,15 @@ const Messages: React.FC = () => {
                   key={conv._id}
                   id={`conversation-${conv._id}`}
                   onClick={() => handleSelectConversation(conv)}
-                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    isSelected && !isRoom ? 'bg-primary-50 border-l-4 border-l-primary-600' : ''
-                  } ${isRoom ? 'bg-blue-50/50' : ''}`}
+                  className={`p-4 border-b border-gray-100 dark:border-[var(--border-color)] cursor-pointer hover:bg-gray-50 dark:hover:bg-[var(--bg-hover)] transition-colors ${
+                    isSelected && !isRoom ? 'bg-primary-50 dark:bg-[var(--bg-hover)] border-l-4 border-l-primary-600 dark:border-l-[var(--link-color)]' : ''
+                  } ${isRoom ? 'bg-blue-50/50 dark:bg-[var(--bg-hover)]/50' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       {isRoom ? (
-                        <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                          <UserGroupIcon className="h-6 w-6 text-blue-600" />
+                        <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-[var(--bg-panel)] flex items-center justify-center">
+                          <UserGroupIcon className="h-6 w-6 text-blue-600 dark:text-[var(--link-color)]" />
                         </div>
                       ) : (
                         <>
@@ -2941,7 +3023,7 @@ const Messages: React.FC = () => {
                             userId={other?._id || ''} 
                             showText={false}
                             glow
-                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white"
+                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 ring-2 ring-white dark:ring-[var(--bg-card)]"
                           />
                         </>
                       )}
@@ -2949,7 +3031,7 @@ const Messages: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <h3 className="text-sm font-medium text-secondary-900 truncate">
+                          <h3 className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)] truncate">
                             {isRoom ? conv.roomName || 'Room' : other?.name}
                           </h3>
                           {isRoom && conv.roomStatus && (
@@ -2959,19 +3041,19 @@ const Messages: React.FC = () => {
                           )}
                         </div>
                         {conv.lastMessage && (
-                          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                          <span className="text-xs text-gray-500 dark:text-[var(--text-muted)] ml-2 flex-shrink-0">
                             {formatTime(conv.lastMessageAt)}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-gray-600 truncate flex-1">
+                        <p className="text-sm text-gray-600 dark:text-[var(--text-secondary)] truncate flex-1">
                           {conv.lastMessage?.content || 'No messages yet'}
                         </p>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {conv.isMuted && (
                             <span
-                              className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
+                              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-[var(--text-muted)] bg-gray-100 dark:bg-[var(--bg-hover)] px-2 py-0.5 rounded-full"
                               title="Notifications silenced — you'll still see unread messages in your Inbox."
                             >
                               <BellSlashIcon className="h-3 w-3" />
@@ -2995,7 +3077,7 @@ const Messages: React.FC = () => {
       </div>
 
       {/* Chat Thread */}
-      <div className="hidden md:flex flex-1 flex-col bg-white">
+      <div className="hidden md:flex flex-1 flex-col bg-white dark:bg-[var(--bg-card)]">
         {selectedConversation ? (
           <>
             {/* Header - Memoized to prevent re-renders on input changes */}
@@ -3015,7 +3097,16 @@ const Messages: React.FC = () => {
             />
 
             {/* Messages - Scrollable area */}
-            <div className="flex-1 overflow-y-auto p-3">
+            <div 
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto p-3 bg-white dark:bg-[var(--bg-card)]"
+              onScroll={() => {
+                // Mark as read when user scrolls to bottom in full view
+                if (selectedConversation && document.visibilityState === 'visible') {
+                  markAsReadIfScrolledToBottom(selectedConversation._id);
+                }
+              }}
+            >
               <div className="min-h-full flex flex-col justify-end">
                 {messageListJSX}
               <div ref={messagesEndRef} />
@@ -3026,7 +3117,7 @@ const Messages: React.FC = () => {
             <TypingActivityBar users={typingUsersDisplay} />
 
             {/* Input - Fixed at bottom */}
-            <form onSubmit={sendMessage} className="shrink-0 p-3 border-t border-gray-200">
+            <form onSubmit={sendMessage} className="shrink-0 p-3 border-t border-gray-200 dark:border-[var(--border-color)]">
               <div className="flex gap-2 items-end">
                 <textarea
                   ref={textareaRef}
@@ -3056,7 +3147,7 @@ const Messages: React.FC = () => {
                     }
                   }}
                   placeholder={isMobileDevice() ? "Type a message... (Enter for newline)" : "Type a message... (Enter to send, Shift+Enter for newline)"}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none overflow-y-auto"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-[var(--border-color)] bg-white dark:bg-[var(--bg-card)] text-secondary-900 dark:text-[var(--text-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-[var(--link-color)] resize-none overflow-y-auto"
                   rows={1}
                   style={{ minHeight: '36px', maxHeight: '160px' }}
                 />
@@ -3072,7 +3163,7 @@ const Messages: React.FC = () => {
             </form>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-[var(--text-muted)]">
             <div className="text-center">
               <p className="text-lg mb-2">Select a conversation</p>
               <p className="text-sm">Choose a conversation from the list to start messaging</p>
@@ -3093,7 +3184,7 @@ const Messages: React.FC = () => {
                 setToasts(prev => prev.filter(t => t.id !== toast.id));
               }
             }}
-            className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[300px] max-w-[400px] cursor-pointer hover:shadow-xl transition-shadow flex items-start gap-3"
+            className="bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-lg border border-gray-200 dark:border-[var(--border-color)] p-3 min-w-[300px] max-w-[400px] cursor-pointer hover:shadow-xl transition-shadow flex items-start gap-3"
           >
             <img
               src={getProfileImageUrl(toast.senderAvatar) || '/default-avatar.png'}
@@ -3101,17 +3192,17 @@ const Messages: React.FC = () => {
               className="h-10 w-10 rounded-full object-cover flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">{toast.senderName}</p>
-              <p className="text-sm text-gray-600 truncate">{toast.message}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-[var(--text-primary)]">{toast.senderName}</p>
+              <p className="text-sm text-gray-600 dark:text-[var(--text-secondary)] truncate">{toast.message}</p>
             </div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setToasts(prev => prev.filter(t => t.id !== toast.id));
               }}
-              className="p-1 hover:bg-gray-100 rounded-full flex-shrink-0"
+              className="p-1 hover:bg-gray-100 dark:hover:bg-[var(--bg-hover)] rounded-full flex-shrink-0"
             >
-              <XMarkIcon className="h-4 w-4 text-gray-500" />
+              <XMarkIcon className="h-4 w-4 text-gray-500 dark:text-[var(--icon-color)]" />
             </button>
           </div>
         ))}

@@ -53,27 +53,27 @@ const CreateMenu: React.FC<CreateMenuProps> = ({ roomId, conversationId }) => {
         </button>
 
         {isOpen && (
-          <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-lg border border-secondary-200 py-2 min-w-[180px] z-50">
+          <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-[var(--bg-card)] rounded-lg shadow-lg border border-secondary-200 dark:border-[var(--border-color)] py-2 min-w-[180px] z-50">
             <button
               onClick={() => handleOptionClick('task')}
-              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)] transition-colors text-left"
             >
               <ClipboardDocumentListIcon className="h-5 w-5 text-primary-600" />
-              <span className="text-sm text-secondary-900">Create Task</span>
+              <span className="text-sm text-secondary-900 dark:text-[var(--text-primary)]">Create Task</span>
             </button>
             <button
               onClick={() => handleOptionClick('todo')}
-              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)] transition-colors text-left"
             >
               <CheckCircleIcon className="h-5 w-5 text-green-600" />
-              <span className="text-sm text-secondary-900">Add To-do</span>
+              <span className="text-sm text-secondary-900 dark:text-[var(--text-primary)]">Add To-do</span>
             </button>
             <button
               onClick={() => handleOptionClick('note')}
-              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)] transition-colors text-left"
             >
               <DocumentTextIcon className="h-5 w-5 text-yellow-600" />
-              <span className="text-sm text-secondary-900">Take Note</span>
+              <span className="text-sm text-secondary-900 dark:text-[var(--text-primary)]">Take Note</span>
             </button>
           </div>
         )}

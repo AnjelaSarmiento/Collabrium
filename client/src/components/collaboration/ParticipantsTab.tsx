@@ -17,7 +17,7 @@ interface ParticipantsTabProps {
 const ParticipantsTab: React.FC<ParticipantsTabProps> = ({ participants }) => {
   return (
     <div className="p-4">
-      <h4 className="font-medium text-secondary-900 mb-4">
+      <h4 className="font-medium text-secondary-900 dark:text-[var(--text-primary)] mb-4">
         Participants ({participants.length})
       </h4>
       <div className="space-y-3">
@@ -29,10 +29,10 @@ const ParticipantsTab: React.FC<ParticipantsTabProps> = ({ participants }) => {
               className="h-10 w-10 rounded-full object-cover"
             />
             <div className="flex-1">
-              <p className="text-sm font-medium text-secondary-900">
+              <p className="text-sm font-medium text-secondary-900 dark:text-[var(--text-primary)]">
                 {participant.user.name}
               </p>
-              <p className="text-xs text-secondary-500">{participant.role}</p>
+              <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">{participant.role}</p>
             </div>
             <div className="w-2 h-2 bg-green-500 rounded-full" title="Online" />
           </div>

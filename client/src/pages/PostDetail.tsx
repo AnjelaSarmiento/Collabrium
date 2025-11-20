@@ -664,7 +664,7 @@ const PostDetail: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold text-secondary-900 mb-4">Post not found</h2>
+          <h2 className="text-2xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Post not found</h2>
           <Link to={backButtonLink} className="btn-primary">
             {backButtonText}
           </Link>
@@ -679,7 +679,7 @@ const PostDetail: React.FC = () => {
       <div className="mb-6">
         <Link
           to={backButtonLink}
-          className="inline-flex items-center text-secondary-600 hover:text-secondary-900 mb-4"
+          className="inline-flex items-center text-secondary-600 dark:text-[var(--text-secondary)] hover:text-secondary-900 dark:hover:text-[var(--text-primary)] mb-4"
         >
           <ArrowLeftIcon className="h-4 w-4 mr-2" />
           {backButtonText}
@@ -701,12 +701,12 @@ const PostDetail: React.FC = () => {
             <UserHoverCard userId={post.author._id}>
               <Link 
                 to={`/app/profile/${post.author._id}`}
-                className="text-sm font-medium text-gray-700 truncate hover:text-primary-600 transition-colors duration-200"
+                className="text-sm font-medium text-gray-700 dark:text-[var(--text-primary)] truncate hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors duration-200"
               >
                 {post.author.name}
               </Link>
             </UserHoverCard>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-[var(--text-muted)]">
               ⭐ {post.author.rating.toFixed(1)} • {post.author.completedCollaborations} collabs
             </span>
           </div>
@@ -741,16 +741,16 @@ const PostDetail: React.FC = () => {
               <div className="relative" ref={actionsMenuRef}>
                 <button
                   onClick={() => setActionsOpen(v => !v)}
-                  className="p-1 text-gray-400 hover:text-secondary-700 transition-colors"
+                  className="p-1 text-gray-400 dark:text-[var(--icon-color)] hover:text-secondary-700 dark:hover:text-[var(--text-primary)] transition-colors"
                   title="More actions"
                 >
                   <EllipsisHorizontalIcon className="h-5 w-5" />
                 </button>
                 {actionsOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-white border border-secondary-200 rounded-lg shadow-lg z-20">
+                  <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-[var(--bg-card)] border border-secondary-200 dark:border-[var(--border-color)] rounded-lg shadow-lg z-20">
                 <Link
                   to={`/app/feed/edit/${post._id}`}
-                      className="block px-3 py-2 text-sm text-secondary-700 hover:bg-secondary-50"
+                      className="block px-3 py-2 text-sm text-secondary-700 dark:text-[var(--text-primary)] hover:bg-secondary-50 dark:hover:bg-[var(--bg-hover)]"
                       onClick={() => setActionsOpen(false)}
                 >
                       Edit Post
@@ -771,11 +771,11 @@ const PostDetail: React.FC = () => {
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-secondary-900 mb-4 break-words">
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-[var(--text-primary)] mb-4 break-words">
           {post.title}
         </h1>
         
-        <p className="text-secondary-600 text-lg mb-6 whitespace-pre-wrap break-words break-all">
+        <p className="text-secondary-600 dark:text-[var(--text-secondary)] text-lg mb-6 whitespace-pre-wrap break-words break-all">
           {post.description}
         </p>
 
@@ -784,14 +784,14 @@ const PostDetail: React.FC = () => {
           {post.tags.map((tag) => (
             <span
               key={tag}
-              className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-sm"
+              className="px-2 py-0.5 bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-600 dark:text-[var(--text-secondary)] text-xs rounded-sm"
             >
               #{tag}
             </span>
           ))}
         </div>
 
-        <div className="flex items-center justify-between text-sm text-secondary-500 mb-6">
+        <div className="flex items-center justify-between text-sm text-secondary-500 dark:text-[var(--text-secondary)] mb-6">
           <div className="flex items-center space-x-6">
             <div className="flex items-center">
               <ClockIcon className="h-4 w-4 mr-1" />
@@ -815,7 +815,7 @@ const PostDetail: React.FC = () => {
                 const currentApproved = post?.collaborators?.length || 0;
                 const max = post?.maxCollaborators || 0;
                 return (
-                  <span className="text-secondary-600">
+                  <span className="text-secondary-600 dark:text-[var(--text-secondary)]">
                     {currentApproved} / {max > 0 ? max : '∞'}
                   </span>
                 );
@@ -837,7 +837,7 @@ const PostDetail: React.FC = () => {
               }
               return (
                 <div className="flex items-center gap-3">
-                  <span className={`px-2.5 py-1 rounded text-xs font-medium ${accepting ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                  <span className={`px-2.5 py-1 rounded text-xs font-medium ${accepting ? 'bg-green-100 text-green-700' : 'bg-gray-100 dark:bg-[var(--bg-hover)] text-gray-700 dark:text-[var(--text-primary)]'}`}>
                     {badgeText}
                   </span>
                 </div>
@@ -897,7 +897,7 @@ const PostDetail: React.FC = () => {
                     </button>
                     <button
                       onClick={handleCancelMyRequest}
-                      className="px-3 py-2 bg-gray-100 text-secondary-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                      className="px-3 py-2 bg-gray-100 dark:bg-[var(--bg-hover)] text-secondary-700 dark:text-[var(--text-primary)] rounded-lg hover:bg-gray-200 dark:hover:bg-[var(--bg-panel)] transition-colors text-sm font-medium"
                     >
                       Cancel
                     </button>
@@ -968,9 +968,9 @@ const PostDetail: React.FC = () => {
         {/* Owner: Collaboration management */}
         {user && post.author._id === user._id && (
           <div className="mt-8">
-            <h2 className="text-xl font-semibold text-secondary-900 mb-3">Collaboration Management</h2>
-            <div className="bg-white border border-secondary-200 rounded-lg overflow-hidden">
-              <div className="flex border-b border-secondary-200 bg-secondary-50">
+            <h2 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-3">Collaboration Management</h2>
+            <div className="bg-white dark:bg-[var(--bg-card)] border border-secondary-200 dark:border-[var(--border-color)] rounded-lg overflow-hidden">
+              <div className="flex border-b border-secondary-200 dark:border-[var(--border-color)] bg-secondary-50 dark:bg-[var(--bg-hover)]">
                 <TabButton
                   label={`Requests${pendingRequests.length ? ` (${pendingRequests.length})` : ''}`}
                   isActive={activeCollabTab === 'requests'}
@@ -1054,7 +1054,7 @@ const PostDetail: React.FC = () => {
 
       {/* Comments Section */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-secondary-900 mb-4">Comments</h3>
+        <h3 className="text-xl font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">Comments</h3>
         
         {/* Comment Form */}
         <form onSubmit={handleComment} className="mb-6">
@@ -1083,11 +1083,11 @@ const PostDetail: React.FC = () => {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-secondary-900 mb-4">
+          <div className="bg-white dark:bg-[var(--bg-card)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-[var(--text-primary)] mb-4">
               Delete Post
             </h3>
-            <p className="text-secondary-600 mb-6">
+            <p className="text-secondary-600 dark:text-[var(--text-secondary)] mb-6">
               Are you sure you want to delete this post? It will be moved to your bin and can be restored within 30 days.
             </p>
             <div className="flex space-x-3">
@@ -1099,7 +1099,7 @@ const PostDetail: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 bg-secondary-200 text-secondary-800 px-4 py-2 rounded-md hover:bg-secondary-300 transition-colors"
+                className="flex-1 bg-secondary-200 dark:bg-[var(--bg-hover)] text-secondary-800 dark:text-[var(--text-primary)] px-4 py-2 rounded-md hover:bg-secondary-300 dark:hover:bg-[var(--bg-panel)] transition-colors"
               >
                 Cancel
               </button>
@@ -1123,8 +1123,8 @@ const TabButton: React.FC<TabButtonProps> = ({ label, isActive, onClick }) => (
     onClick={onClick}
     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
       isActive
-        ? 'text-primary-700 border-b-2 border-primary-600 bg-white'
-        : 'text-secondary-500 hover:text-secondary-700'
+        ? 'text-primary-700 dark:text-[var(--link-color)] border-b-2 border-primary-600 dark:border-[var(--link-color)] bg-white dark:bg-[var(--bg-card)]'
+        : 'text-secondary-500 dark:text-[var(--text-secondary)] hover:text-secondary-700 dark:hover:text-[var(--text-primary)]'
     }`}
   >
     {label}
@@ -1151,12 +1151,12 @@ const RequestsTab: React.FC<RequestsTabProps> = ({
   onDecline
 }) => {
   if (loading) {
-    return <p className="text-sm text-secondary-500">Loading requests…</p>;
+    return <p className="text-sm text-secondary-500 dark:text-[var(--text-secondary)]">Loading requests…</p>;
   }
 
   if (!pendingRequests.length) {
     return (
-      <div className="text-sm text-secondary-500 space-y-2">
+      <div className="text-sm text-secondary-500 dark:text-[var(--text-secondary)] space-y-2">
         <p>No pending collaboration requests right now.</p>
         {postStatus !== 'Open' && (
           <p className="italic">This post is currently {postStatus}. Re-open requests in the Settings tab to accept new collaborators.</p>
@@ -1168,7 +1168,7 @@ const RequestsTab: React.FC<RequestsTabProps> = ({
   return (
     <div className="space-y-3">
       {pendingRequests.map((req) => (
-        <div key={req._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
+        <div key={req._id} className="flex items-center justify-between p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg border border-secondary-200 dark:border-[var(--border-color)]">
           <div className="flex items-center gap-3">
             <UserHoverCard userId={req.requester._id}>
               <img
@@ -1181,12 +1181,12 @@ const RequestsTab: React.FC<RequestsTabProps> = ({
               <UserHoverCard userId={req.requester._id}>
                 <Link
                   to={`/app/profile/${req.requester._id}`}
-                  className="font-medium text-secondary-900 hover:text-primary-600 transition-colors"
+                  className="font-medium text-secondary-900 dark:text-[var(--text-primary)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors"
                 >
                   {req.requester.name}
                 </Link>
               </UserHoverCard>
-              <p className="text-sm text-secondary-500">
+              <p className="text-sm text-secondary-500 dark:text-[var(--text-secondary)]">
                 ⭐ {req.requester.rating.toFixed(1)} • {req.requester.completedCollaborations} collabs
               </p>
             </div>
@@ -1200,7 +1200,7 @@ const RequestsTab: React.FC<RequestsTabProps> = ({
             </button>
             <button
               onClick={() => onDecline(req._id)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-[var(--text-primary)] bg-gray-100 dark:bg-[var(--bg-hover)] rounded-md hover:bg-gray-200 dark:hover:bg-[var(--bg-panel)] transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-[var(--link-color)]"
             >
               Decline
             </button>
@@ -1218,7 +1218,7 @@ interface CollaboratorsTabProps {
 
 const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({ collaborators, onRemove }) => {
   if (!collaborators.length) {
-    return <p className="text-sm text-secondary-500">No collaborators yet. Approved collaborators will appear here.</p>;
+    return <p className="text-sm text-secondary-500 dark:text-[var(--text-secondary)]">No collaborators yet. Approved collaborators will appear here.</p>;
   }
 
   return (
@@ -1230,7 +1230,7 @@ const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({ collaborators, onRe
         const avatar = getProfileImageUrl(userData?.profilePicture) || '/default-avatar.png';
 
         return (
-          <div key={`${collaboratorId}-${collab.joinedAt}`} className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg border border-secondary-200">
+          <div key={`${collaboratorId}-${collab.joinedAt}`} className="flex items-center justify-between p-3 bg-secondary-50 dark:bg-[var(--bg-hover)] rounded-lg border border-secondary-200 dark:border-[var(--border-color)]">
             <div className="flex items-center gap-3">
               {userData ? (
                 <UserHoverCard userId={userData._id}>
@@ -1244,15 +1244,15 @@ const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({ collaborators, onRe
                   <UserHoverCard userId={userData._id}>
                     <Link
                       to={`/app/profile/${userData._id}`}
-                      className="font-medium text-secondary-900 hover:text-primary-600 transition-colors"
+                      className="font-medium text-secondary-900 dark:text-[var(--text-primary)] hover:text-primary-600 dark:hover:text-[var(--link-color)] transition-colors"
                     >
                       {displayName}
                     </Link>
                   </UserHoverCard>
                 ) : (
-                  <p className="font-medium text-secondary-900">{displayName}</p>
+                  <p className="font-medium text-secondary-900 dark:text-[var(--text-primary)]">{displayName}</p>
                 )}
-                <p className="text-xs text-secondary-500">
+                <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)]">
                   Joined {new Date(collab.joinedAt).toLocaleDateString()}
                 </p>
               </div>
@@ -1260,7 +1260,7 @@ const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({ collaborators, onRe
             {onRemove && collaboratorId && (
               <button
                 onClick={() => onRemove(collaboratorId)}
-                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
               >
                 Remove
               </button>
@@ -1296,7 +1296,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
   <div className="space-y-4">
     <div className="grid gap-4 md:grid-cols-2">
       <div>
-        <label className="block text-sm font-medium text-secondary-700 mb-1">
+        <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-1">
           Maximum Collaborators (0 = unlimited)
         </label>
         <input
@@ -1311,12 +1311,12 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
           }}
           className="input-field w-full"
         />
-        <p className="text-xs text-secondary-500 mt-1">
+        <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)] mt-1">
           Current: {currentCount} / {max && max > 0 ? max : '∞'}
         </p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-secondary-700 mb-1">
+        <label className="block text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)] mb-1">
           Accept Requests
         </label>
         <button
@@ -1325,7 +1325,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
           aria-checked={settingsOpen}
           onClick={() => onSettingsOpenChange(!settingsOpen)}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            settingsOpen ? 'bg-green-600' : 'bg-gray-300'
+            settingsOpen ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
           }`}
           title={settingsOpen ? 'Accepting requests (click to close)' : 'Requests closed (click to open)'}
         >
@@ -1336,10 +1336,10 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
           />
           <span className="sr-only">Toggle Accept Requests</span>
         </button>
-        <span className="ml-3 text-sm font-medium text-secondary-700">
+        <span className="ml-3 text-sm font-medium text-secondary-700 dark:text-[var(--text-primary)]">
           {settingsOpen ? 'Open' : 'Closed'}
         </span>
-        <p className="text-xs text-secondary-500 mt-1">
+        <p className="text-xs text-secondary-500 dark:text-[var(--text-secondary)] mt-1">
           Auto-closes when max is reached.
         </p>
       </div>

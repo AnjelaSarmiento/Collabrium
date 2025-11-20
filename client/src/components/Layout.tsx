@@ -10,9 +10,9 @@ const Layout: React.FC = () => {
   const isFullPageRoom = location.pathname.startsWith('/app/room/');
 
   return (
-    <div className="min-h-screen bg-secondary-50">
+    <div className="min-h-screen bg-secondary-50 dark:bg-[var(--bg-page)]">
       <Navbar />
-      <div className="flex">
+      <div className="flex pt-16">
         {!isFullPageRoom && <Sidebar />}
         <main className={`flex-1 ${!isFullPageRoom ? 'md:ml-64' : ''} ${isFullPageRoom ? '' : 'p-6'}`}>
           <Outlet />
