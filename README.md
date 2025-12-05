@@ -2,7 +2,7 @@
 
 Collabrium is a next-generation platform that combines learning, freelancing, and community collaboration. Users can post help requests, collaborate in real-time through chat or video calls, and earn rewards (CollabPoints).
 
-## 🚀 Features
+## Features
 
 - **User System & Profiles**: Personal pages with skills, CollabPoints, badges, and reviews
 - **Community Feed (CollabFeed)**: Public space for collaboration requests and paid tasks
@@ -12,7 +12,7 @@ Collabrium is a next-generation platform that combines learning, freelancing, an
 - **Gamification System**: Badges, levels, and leaderboards
 - **Admin Dashboard**: Management and moderation tools
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Backend
 - **Node.js** + **Express.js** (MVC Architecture)
@@ -28,7 +28,7 @@ Collabrium is a next-generation platform that combines learning, freelancing, an
 - **Axios** (HTTP client)
 - **Socket.io Client** (Real-time features)
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 - Node.js (v16 or higher)
@@ -101,7 +101,7 @@ Collabrium is a next-generation platform that combines learning, freelancing, an
    npm start
    ```
 
-## 🚀 Running the Application
+## Running the Application
 
 ### Development Mode
 ```bash
@@ -121,7 +121,7 @@ cd client && npm run build
 npm start
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 collabrium/
@@ -187,7 +187,7 @@ collabrium/
 - `POST /api/wallet/transfer` - Transfer points
 - `POST /api/wallet/purchase` - Purchase points
 
-## 🎯 Key Features Implementation
+## Key Features Implementation
 
 ### Real-time Collaboration
 - Socket.io for real-time chat and notifications
@@ -206,7 +206,7 @@ collabrium/
 - Leaderboards for competition
 - Achievement tracking
 
-## 🔒 Security Features
+## Security Features
 
 - Password hashing with bcrypt
 - JWT-based authentication
@@ -215,7 +215,7 @@ collabrium/
 - CORS protection
 - Helmet.js security headers
 
-## 🚀 Deployment
+## Deployment
 
 ### Backend (Render/Railway/AWS)
 1. Connect your GitHub repository
@@ -232,7 +232,7 @@ collabrium/
 2. Get connection string
 3. Update MONGODB_URI in environment variables
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -250,4 +250,4 @@ For support, email support@collabrium.com or join our Discord community.
 
 ---
 
-**Collabrium** - Where collaboration meets rewards! 🚀
+**Collabrium** - Where collaboration meets rewards! 
